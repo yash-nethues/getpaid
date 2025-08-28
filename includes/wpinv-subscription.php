@@ -632,7 +632,7 @@ class WPInv_Subscription extends GetPaid_Data {
         $date = strtotime( $value );
 
         if ( $date && $value !== '0000-00-00 00:00:00' ) {
-            $this->set_prop( 'created', gmdate( 'Y-m-d H:i:s', $date ) );
+            $this->set_prop( 'created', date( 'Y-m-d H:i:s', $date ) );
             return;
         }
 
@@ -660,7 +660,7 @@ class WPInv_Subscription extends GetPaid_Data {
 		$date = strtotime( $value );
 
         if ( $date && $value !== '0000-00-00 00:00:00' ) {
-            $this->set_prop( 'expiration', gmdate( 'Y-m-d H:i:s', $date ) );
+            $this->set_prop( 'expiration', date( 'Y-m-d H:i:s', $date ) );
             return;
 		}
 
@@ -906,11 +906,6 @@ class WPInv_Subscription extends GetPaid_Data {
 			return false;
 		}
 
-		return $this->after_add_payment( $invoice );
-	}
-
-    public function after_add_payment( $invoice ) {
-
 		do_action( 'getpaid_after_create_subscription_renewal_invoice', $invoice, $this );
 		do_action( 'wpinv_recurring_add_subscription_payment', $invoice, $this );
         do_action( 'wpinv_recurring_record_payment', $invoice->get_id(), $this->get_parent_invoice_id(), $invoice->get_recurring_total(), $invoice->get_transaction_id() );
@@ -960,14 +955,8 @@ class WPInv_Subscription extends GetPaid_Data {
 
 		// Maybe recalculate discount (Pre-GetPaid Fix).
 		$discount = new WPInv_Discount( $invoice->get_discount_code() );
-
-		if ( $discount->exists() && $discount->is_recurring() ) {
+		if ( $discount->exists() && $discount->is_recurring() && 0 == $invoice->get_total_discount() ) {
 			$invoice->add_discount( getpaid_calculate_invoice_discount( $invoice, $discount ) );
-		}  else {
-			// Unset discount code.
-			$invoice->set_discount_code( '' );
-
-			$invoice->remove_discount( 'discount_code' );
 		}
 
 		$invoice->recalculate_total();
@@ -988,24 +977,20 @@ class WPInv_Subscription extends GetPaid_Data {
 	 * @since  1.0.0
 	 * @return int The subscription's id
 	 */
-	public function renew( $calculate_from = null, $_new_expiration = null ) {
+	public function renew( $calculate_from = null ) {
+
 		// Complete subscription if applicable
 		if ( $this->is_last_renewal() ) {
 			return $this->complete();
 		}
 
-		if ( ! empty( $_new_expiration ) ) {
-			$new_expiration = $_new_expiration;
-		} else {
-			// Calculate new expiration
-			$frequency      = $this->get_frequency();
-			$period         = $this->get_period();
-			$calculate_from = empty( $calculate_from ) ? $this->get_expiration_time() : $calculate_from;
-			$new_expiration = strtotime( "+ $frequency $period", $calculate_from );
-			$new_expiration = date( 'Y-m-d H:i:s', $new_expiration );
-		}
+		// Calculate new expiration
+		$frequency      = $this->get_frequency();
+		$period         = $this->get_period();
+		$calculate_from = empty( $calculate_from ) ? $this->get_expiration_time() : $calculate_from;
+		$new_expiration = strtotime( "+ $frequency $period", $calculate_from );
 
-		$this->set_expiration( $new_expiration );
+		$this->set_expiration( date( 'Y-m-d H:i:s', $new_expiration ) );
 		$this->set_status( 'active' );
 		$this->save();
 
@@ -1197,7 +1182,7 @@ class WPInv_Subscription extends GetPaid_Data {
 	 */
 	public function get_status_class() {
 		$statuses = getpaid_get_subscription_status_classes();
-		return isset( $statuses[ $this->get_status() ] ) ? $statuses[ $this->get_status() ] : 'bg-dark';
+		return isset( $statuses[ $this->get_status() ] ) ? $statuses[ $this->get_status() ] : 'badge-dark';
 	}
 
     /**
@@ -1212,7 +1197,7 @@ class WPInv_Subscription extends GetPaid_Data {
 		$class        = esc_attr( $this->get_status_class() );
 		$status       = sanitize_html_class( $this->get_status() );
 
-		return "<span class='bsui'><span class='badge $class $status text-white'>$status_label</span></span>";
+		return "<span class='bsui'><span class='badge $class $status'>$status_label</span></span>";
     }
 
     /**

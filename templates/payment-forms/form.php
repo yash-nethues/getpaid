@@ -65,7 +65,7 @@ do_action( 'getpaid_before_payment_form', $form );
 
         // And an indication that this is a payment form submission.
         getpaid_hidden_field( 'getpaid_payment_form_submission', '1' );
- 
+
         // Fires before displaying payment form elements.
         do_action( 'getpaid_payment_form_before_elements', $form );
 
@@ -76,16 +76,13 @@ do_action( 'getpaid_before_payment_form', $form );
                 <?php
 
                     foreach ( $form->get_elements() as $element ) {
+
 					    if ( isset( $element['type'] ) ) {
                             $grid_class = getpaid_get_form_element_grid_class( $element );
-                            do_action( 'getpaid_payment_form_element_before', $element, $form );
-                            do_action( "getpaid_payment_form_element_before_{$element['type']}_template", $element, $form );
                             echo "<div class='" . esc_attr( $grid_class ) . "'>";
                             do_action( 'getpaid_payment_form_element', $element, $form );
                             do_action( "getpaid_payment_form_element_{$element['type']}_template", $element, $form );
                             echo '</div>';
-                            do_action( 'getpaid_payment_form_element_after', $element, $form );
-                            do_action( "getpaid_payment_form_element_after_{$element['type']}_template", $element, $form );
                         }
                     }
 

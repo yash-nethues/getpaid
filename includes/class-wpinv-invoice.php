@@ -35,7 +35,6 @@ class WPInv_Invoice extends GetPaid_Data {
 	 */
 	protected $data = array(
 		'parent_id'              => 0,
-		'customer_id'            => 0,
 		'status'                 => 'wpi-pending',
 		'version'                => '',
 		'date_created'           => null,
@@ -85,7 +84,6 @@ class WPInv_Invoice extends GetPaid_Data {
         'disable_taxes'          => false,
 		'subscription_id'        => null,
 		'remote_subscription_id' => null,
-		'is_anonymized'          => false,
 		'is_viewed'              => false,
 		'email_cc'               => '',
 		'template'               => 'quantity', // hours, amount only
@@ -220,9 +218,8 @@ class WPInv_Invoice extends GetPaid_Data {
 
         // Fetch from the db.
         $table       = $wpdb->prefix . 'getpaid_invoices';
-		$db_field    = 'key' === $field ? 'invoice_key' : $field;
         $invoice_id  = (int) $wpdb->get_var(
-            $wpdb->prepare( "SELECT `post_id` FROM $table WHERE `$db_field`=%s LIMIT 1", $value )
+            $wpdb->prepare( "SELECT `post_id` FROM $table WHERE `$field`=%s LIMIT 1", $value )
         );
 
 		// Update the cache with our data
@@ -327,7 +324,7 @@ class WPInv_Invoice extends GetPaid_Data {
 	 */
 	public function get_status_class() {
 		$statuses = getpaid_get_invoice_status_classes();
-		return isset( $statuses[ $this->get_status() ] ) ? $statuses[ $this->get_status() ] : 'bg-dark text-white';
+		return isset( $statuses[ $this->get_status() ] ) ? $statuses[ $this->get_status() ] : 'badge-dark';
 	}
 
 	/**
@@ -763,7 +760,7 @@ class WPInv_Invoice extends GetPaid_Data {
     }
 
     /**
-	 * Get the user id.
+	 * Get the customer id.
 	 *
 	 * @since 1.0.19
 	 * @param  string $context View or edit context.
@@ -785,14 +782,14 @@ class WPInv_Invoice extends GetPaid_Data {
     }
 
      /**
-	 * Get customer ID.
+	 * Alias of self::get_author().
 	 *
 	 * @since 1.0.19
 	 * @param  string $context View or edit context.
 	 * @return int
 	 */
 	public function get_customer_id( $context = 'view' ) {
-		return (int) $this->get_prop( 'customer_id', $context );
+		return $this->get_author( $context );
     }
 
     /**
@@ -1419,7 +1416,7 @@ class WPInv_Invoice extends GetPaid_Data {
     }
 
 	public function has_shipping() {
-		return defined( 'GETPAID_SHIPPING_CALCULATOR_VERSION' ) && $this->get_prop( 'shipping', 'edit' );
+		return defined( 'GETPAID_SHIPPING_CALCULATOR_VERSION' ) && null !== $this->get_prop( 'shipping', 'edit' );
     }
 
     /**
@@ -1811,17 +1808,6 @@ class WPInv_Invoice extends GetPaid_Data {
         }
 
         return $subscription_id;
-    }
-
-	/**
-	 * Get the invoice's _anonymize status.
-	 *
-	 * @since 2.8.22
-	 * @param  string $context View or edit context.
-	 * @return string
-	 */
-	public function get_is_anonymized( $context = 'view' ) {
-		return (bool) $this->get_prop( 'is_anonymized', $context );
     }
 
     /**
@@ -2380,13 +2366,13 @@ class WPInv_Invoice extends GetPaid_Data {
     }
 
     /**
-	 * Sets the customer ID.
+	 * Alias of self::set_author().
 	 *
 	 * @since 1.0.19
 	 * @param  int $value New user id.
 	 */
 	public function set_customer_id( $value ) {
-		$this->set_prop( 'customer_id', (int) $value );
+		$this->set_author( $value );
     }
 
     /**
@@ -3139,16 +3125,6 @@ class WPInv_Invoice extends GetPaid_Data {
 		$this->set_prop( 'remote_subscription_id', $value );
     }
 
-	/**
-	 * Set the invoice anonymize status.
-	 *
-	 * @since 2.8.22
-	 * @param  bool $is_anonymized is anonymized.
-	 */
-	public function set_is_anonymized( $is_anonymized ) {
-		$this->set_prop( 'is_anonymized', (bool) $is_anonymized );
-    }
-
     /*
 	|--------------------------------------------------------------------------
 	| Boolean methods
@@ -3324,15 +3300,6 @@ class WPInv_Invoice extends GetPaid_Data {
     public function is_free_trial_from_discount() {
 		return $this->has_free_trial() && ! $this->item_has_free_trial();
 	}
-
-	/**
-     * Checks if this is an anonymized invoice.
-     *
-     * @since 2.8.22
-     */
-    public function is_anonymized() {
-        return true === (bool) $this->get_is_anonymized();
-    }
 
 	/**
      * @deprecated
@@ -3533,7 +3500,7 @@ class WPInv_Invoice extends GetPaid_Data {
 	 */
 	public function get_discount( $discount = false ) {
 
-		// Backwards compatibility.
+		// Backwards compatibilty.
 		if ( empty( $discount ) ) {
 			return $this->get_total_discount();
 		}
@@ -3585,7 +3552,7 @@ class WPInv_Invoice extends GetPaid_Data {
 	 */
 	public function get_tax( $tax = null ) {
 
-		// Backwards compatibility.
+		// Backwards compatility.
 		if ( empty( $tax ) ) {
 			return $this->get_total_tax();
 		}
@@ -3593,88 +3560,6 @@ class WPInv_Invoice extends GetPaid_Data {
         $taxes = $this->get_taxes();
 		return isset( $taxes[ $tax ] ) ? $taxes[ $tax ] : null;
     }
-
-	public function get_tax_total_by_name( $name ) {
-		if ( $name && 0 === strpos( $name, 'tax__' ) ) {
-			$name = str_replace( 'tax__', '', $name );
-		}
-
-		if ( empty( $name ) ) {
-			return 0;
-		}
-
-		$tax = $this->get_tax( $name );
-
-		if ( empty( $tax ) ) {
-			return 0;
-		}
-
-        return $this->is_renewal() ? $tax['recurring_tax'] : $tax['initial_tax'];
-    }
-
-	/**
-	 * Get tax item name.
-	 *
-	 * @since 2.8.8
-	 */
-	public function get_tax_item_name( $tax_key, $tax_item, $suffix = '' ) {
-		$tax_name = _x( 'Tax', 'Tax name', 'invoicing' );
-
-		if ( ! empty( $tax_item ) && is_array( $tax_item ) && ! empty( $tax_item['name'] ) ) {
-			$tax_name = __( $tax_item['name'], 'invoicing' );
-		}
-
-		if ( $suffix ) {
-			$tax_name .= $suffix;
-		}
-
-		return apply_filters( 'wpinv_invoice_get_tax_name', $tax_name, $this, $tax_key, $tax_item, $suffix );
-	}
-
-	/**
-	 * Get tax item amount.
-	 *
-	 * @since 2.8.8
-	 */
-	public function get_tax_item_amount( $tax_key, $tax_item, $with_currency = false ) {
-		$tax_amount = $this->get_tax_total_by_name( $tax_key );
-
-		if ( $with_currency ) {
-			$tax_amount = wpinv_price( $tax_amount, $this->get_currency() );
-		}
-
-		return apply_filters( 'wpinv_invoice_get_tax_amount', $tax_amount, $this, $tax_item, $with_currency );
-	}
-
-	public function get_item_tax_name( $percentage = true, $sep = ' + ' ) {
-		$taxes = $this->get_taxes();
-
-		if ( ! empty( $taxes ) && is_array( $taxes ) && count( $taxes ) == 1 && wpinv_display_individual_tax_rates() ) {
-			$names = array();
-
-			foreach ( $taxes as $key => $tax ) {
-				if ( ! empty( $tax ) && ! empty( $tax['name'] ) ) {
-					$name = __( $tax['name'], 'invoicing' );
-
-					$names[] = $name;
-				}
-			}
-
-			if ( ! empty( $names ) ) {
-				$names = array_unique( $names );
-
-				$tax_name = implode( $sep, $names );
-			}
-
-			if ( $percentage ) {
-				$tax_name = wp_sprintf( _x( '%s (%%)', 'Tax name with %. Ex: Tax (%)', 'invoicing' ), $tax_name );
-			}
-		} else {
-			$tax_name = $percentage ? __( 'Tax (%)', 'invoicing' ) : _x( 'Tax', 'Tax name', 'invoicing' );
-		}
-
-		return apply_filters( 'wpinv_invoice_get_item_tax_name', $tax_name, $this, $percentage, $sep );
-	}
 
     /**
 	 * Removes a specific tax.
@@ -3728,17 +3613,7 @@ class WPInv_Invoice extends GetPaid_Data {
 	 * @return float The recalculated discount
 	 */
 	public function recalculate_total_discount() {
-		// Fix renewal invoice amount when tax + recurring discount applied.
-		if ( $this->is_renewal() && $this->get_discount_code() ) {
-			// Maybe recalculate discount (Pre-GetPaid Fix).
-			$discount = new WPInv_Discount( $this->get_discount_code() );
-
-			if ( $discount->exists() && $discount->is_recurring() ) {
-				getpaid_calculate_invoice_discount( $this, $discount );
-			}
-		}
-
-		$discounts = $this->get_discounts();
+        $discounts = $this->get_discounts();
 		$discount  = 0;
 		$recurring = 0;
 
@@ -3811,6 +3686,7 @@ class WPInv_Invoice extends GetPaid_Data {
 				}
 			}
 
+			$item_taxes = array_replace( $this->get_taxes(), $item_taxes );
 			$this->set_taxes( $item_taxes );
 
 			$initial_tax   = array_sum( wp_list_pluck( $item_taxes, 'initial_tax' ) );
@@ -3843,13 +3719,8 @@ class WPInv_Invoice extends GetPaid_Data {
 		$recurring = 0;
 
         foreach ( $fees as $data ) {
-			if( isset( $data['initial_fee'] ) ){
-				$fee += wpinv_sanitize_amount( $data['initial_fee'] );
-			}
-
-			if( isset( $data['recurring_fee'] ) ){
-				$recurring += wpinv_sanitize_amount( $data['recurring_fee'] );
-			}
+			$fee       += wpinv_sanitize_amount( $data['initial_fee'] );
+			$recurring += wpinv_sanitize_amount( $data['recurring_fee'] );
 		}
 
 		$current = $this->is_renewal() ? $recurring : $fee;
@@ -3993,7 +3864,7 @@ class WPInv_Invoice extends GetPaid_Data {
 
 					// Work out if this was for a payment, and trigger a payment_status hook instead.
 					if (
-						in_array( $status_transition['from'], array( 'wpi-cancelled', 'pending', 'wpi-pending', 'wpi-failed', 'wpi-refunded', 'wpi-onhold' ), true )
+						in_array( $status_transition['from'], array( 'wpi-cancelled', 'wpi-pending', 'wpi-failed', 'wpi-refunded', 'wpi-onhold' ), true )
 						&& in_array( $status_transition['to'], array( 'publish', 'wpi-processing', 'wpi-renewal' ), true )
 					) {
 						do_action( 'getpaid_invoice_payment_status_changed', $this, $status_transition );
@@ -4002,7 +3873,7 @@ class WPInv_Invoice extends GetPaid_Data {
 					// Work out if this was for a payment reversal, and trigger a payment_status_reversed hook instead.
 					if (
 						in_array( $status_transition['from'], array( 'publish', 'wpi-processing', 'wpi-renewal' ), true )
-						&& in_array( $status_transition['to'], array( 'wpi-cancelled', 'pending', 'wpi-pending', 'wpi-failed', 'wpi-refunded', 'wpi-onhold' ), true )
+						&& in_array( $status_transition['to'], array( 'wpi-cancelled', 'wpi-pending', 'wpi-failed', 'wpi-refunded', 'wpi-onhold' ), true )
 					) {
 						do_action( 'getpaid_invoice_payment_status_reversed', $this, $status_transition );
 					}
@@ -4100,7 +3971,7 @@ class WPInv_Invoice extends GetPaid_Data {
 			$this->set_transaction_id( $transaction_id );
 		}
 
-		if ( $this->is_paid() && 'wpi-processing' !== $this->get_status() ) {
+		if ( $this->is_paid() && 'wpi-processing' != $this->get_status() ) {
 			return $this->save();
 		}
 

@@ -483,76 +483,19 @@ function wpinv_get_registered_settings_sections() {
 }
 
 function wpinv_get_pages( $with_slug = false, $default_label = null ) {
-    global $wpdb, $gp_tmpl_page_options;
-
-    // Same function, lets not call it twice if we don't need to.
-    if ( function_exists( 'sd_template_page_options' ) ) {
-        $args = array(
-            'with_slug' => $with_slug,
-            'default_label' => $default_label
-        );
-
-        return sd_template_page_options( $args );
-    }
-
-    if ( ! empty( $gp_tmpl_page_options ) ) {
-        return $gp_tmpl_page_options;
-    }
-
-    $exclude_pages = array();
-    if ( $page_on_front = get_option( 'page_on_front' ) ) {
-        $exclude_pages[] = $page_on_front;
-    }
-
-    if ( $page_for_posts = get_option( 'page_for_posts' ) ) {
-        $exclude_pages[] = $page_for_posts;
-    }
-
-    $exclude_pages_placeholders = '';
-    if ( ! empty( $exclude_pages ) ) {
-        // Sanitize the array of excluded pages and implode it for the SQL query
-        $exclude_pages_placeholders = implode(',', array_fill(0, count($exclude_pages), '%d'));
-    }
-
-    // Prepare the base SQL query, including child_of = 0 (only root-level pages)
-    $sql = "
-		SELECT ID, post_title, post_name
-		FROM $wpdb->posts
-		WHERE post_type = 'page'
-		AND post_status = 'publish'
-	";
-
-    // Add the exclusion if there are pages to exclude
-    if ( ! empty( $exclude_pages ) ) {
-        $sql .= " AND ID NOT IN ($exclude_pages_placeholders)";
-    }
-
-    // Add sorting
-    $sql .= " ORDER BY post_title ASC";
-
-    // Add a sanity limit
-    $limit = absint( apply_filters('wpinv_get_pages_limit',500) );
-    $sql .= " LIMIT " . absint($limit);
-
-    // Prepare the SQL query to include the excluded pages only if we have placeholders
-    $pages = $exclude_pages_placeholders ? $wpdb->get_results( $wpdb->prepare( $sql, ...$exclude_pages ) ) : $wpdb->get_results( $sql );
-
 	$pages_options = array();
 
-    if ( $pages ) {
-        foreach ( $pages as $page ) {
-            $title = $with_slug ? $page->post_title . ' (' . $page->post_name . ')' : $page->post_title;
+	if ( $default_label !== null && $default_label !== false ) {
+		$pages_options = array( '' => $default_label ); // Blank option
+	}
+
+	$pages = get_pages();
+	if ( $pages ) {
+		foreach ( $pages as $page ) {
+			$title = $with_slug ? $page->post_title . ' (' . $page->post_name . ')' : $page->post_title;
             $pages_options[ $page->ID ] = $title;
-        }
-    }
-
-
-
-    $gp_tmpl_page_options = $pages_options;
-
-    if ( $default_label !== null && $default_label !== false ) {
-        $pages_options = array( '' => $default_label ) + $pages_options; // Blank option
-    }
+		}
+	}
 
 	return $pages_options;
 }
@@ -1099,7 +1042,7 @@ function wpinv_tools_callback( $args ) {
                 </td>
             </tr>
 			<tr>
-                <td><?php esc_html_e( 'Repair Database Tables', 'invoicing' ); ?></td>
+                <td><?php esc_html_e( 'Create Database Tables', 'invoicing' ); ?></td>
                 <td>
                     <small><?php esc_html_e( 'Run this tool to create any missing database tables.', 'invoicing' ); ?></small>
                 </td>
@@ -1207,61 +1150,6 @@ function wpinv_on_update_settings( $old_value, $value, $option ) {
 }
 add_action( 'update_option_wpinv_settings', 'wpinv_on_update_settings', 10, 3 );
 
-
-/**
- * Retrieve merge tags for email templates.
- * 
- * Returns an array of merge tags that can be used in email templates for invoices & subscriptions.
- * 
- * @since    2.1.8
- *
- * @return array
- */
-function wpinv_get_email_merge_tags( $subscription = false ) {
-	$merge_tags = array(
-		'{site_title}'           => __( 'Site Title', 'invoicing' ),
-		'{name}'                 => __( "Customer's full name", 'invoicing' ),
-		'{first_name}'           => __( "Customer's first name", 'invoicing' ),
-		'{last_name}'            => __( "Customer's last name", 'invoicing' ),
-		'{email}'                => __( "Customer's email address", 'invoicing' ),
-		'{invoice_number}'       => __( 'The invoice number', 'invoicing' ),
-		'{invoice_currency}'     => __( 'The invoice currency', 'invoicing' ),
-		'{invoice_total}'        => __( 'The invoice total', 'invoicing' ),
-		'{invoice_link}'         => __( 'The invoice link', 'invoicing' ),
-		'{invoice_pay_link}'     => __( 'The payment link', 'invoicing' ),
-		'{invoice_receipt_link}' => __( 'The receipt link', 'invoicing' ),
-		'{invoice_date}'         => __( 'The date the invoice was created', 'invoicing' ),
-		'{invoice_due_date}'     => __( 'The date the invoice is due', 'invoicing' ),
-		'{date}'                 => __( "Today's date", 'invoicing' ),
-		'{is_was}'               => __( 'If due date of invoice is past, displays "was" otherwise displays "is"', 'invoicing' ),
-		'{invoice_label}'        => __( 'Invoices/quotes singular name. Ex: Invoice/Quote', 'invoicing' ),
-		'{invoice_quote}'        => __( 'Invoices/quotes singular name in small letters. Ex: invoice/quote', 'invoicing' ),
-		'{invoice_description}'  => __( 'The description of the invoice', 'invoicing' ),
-	);
-
-	if ( $subscription ) {
-		$merge_tags = array_merge(
-			$merge_tags,
-			array(
-				'{subscription_renewal_date}'     => __( 'The next renewal date of the subscription', 'invoicing' ),
-				'{subscription_created}'          => __( "The subscription's creation date", 'invoicing' ),
-				'{subscription_status}'           => __( "The subscription's status", 'invoicing' ),
-				'{subscription_profile_id}'       => __( "The subscription's remote profile id", 'invoicing' ),
-				'{subscription_id}'               => __( "The subscription's id", 'invoicing' ),
-				'{subscription_recurring_amount}' => __( 'The renewal amount of the subscription', 'invoicing' ),
-				'{subscription_initial_amount}'   => __( 'The initial amount of the subscription', 'invoicing' ),
-				'{subscription_recurring_period}' => __( 'The recurring period of the subscription (e.g 1 year)', 'invoicing' ),
-				'{subscription_bill_times}'       => __( 'The maximum number of times the subscription can be renewed', 'invoicing' ),
-				'{subscription_url}'              => __( 'The URL to manage a subscription', 'invoicing' ),
-				'{subscription_name}'             => __( 'The name of the recurring item', 'invoicing' ),
-			)
-		);
-	}
-
-	return $merge_tags;
-}
-
-
 /**
  * Returns the merge tags help text.
  *
@@ -1270,28 +1158,16 @@ function wpinv_get_email_merge_tags( $subscription = false ) {
  * @return string
  */
 function wpinv_get_merge_tags_help_text( $subscription = false ) {
-	$merge_tags = wpinv_get_email_merge_tags( $subscription );
 
-	$output = '<div class="bsui">';
-
+	$url  = $subscription ? 'https://gist.github.com/picocodes/3d213982d57c34edf7a46fd3f0e8583e' : 'https://gist.github.com/picocodes/43bdc4d4bbba844534b2722e2af0b58f';
 	$link = sprintf(
-		'<strong class="getpaid-merge-tags text-primary" role="button">%s</strong>',
+		'<strong><a href="%s" target="_blank">%s</a></strong>',
+		$url,
 		esc_html__( 'View available merge tags.', 'invoicing' )
 	);
 
 	$description = esc_html__( 'The content of the email (Merge Tags and HTML are allowed).', 'invoicing' );
-	
-	$output .= "$description $link";
 
-	$output .= '<div class="getpaid-merge-tags-content mt-2 p-1 d-none">';
-	$output .= '<p class="mb-2">' . esc_html__( 'The following wildcards can be used in email subjects, heading and content:', 'invoicing' ) . '</p>';
+	return "$description $link";
 
-	$output .= '<ul class="p-0 m-0">';
-	foreach($merge_tags as $tag => $tag_description) {
-		$output .= "<li class='mb-2'><strong class='text-dark'>$tag</strong> &mdash; $tag_description</li>";
-	}
-
-	$output .= '</ul></div></div>';
-
-	return $output;
 }

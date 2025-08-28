@@ -26,7 +26,7 @@ class AUI_Component_Pagination {
 			'mid_size'           => 2,
 			'prev_text'          => '<i class="fas fa-chevron-left"></i>',
 			'next_text'          => '<i class="fas fa-chevron-right"></i>',
-			'screen_reader_text' => __( 'Posts navigation', 'ayecode-connect' ),
+			'screen_reader_text' => __( 'Posts navigation','aui' ),
 			'before_paging'      => '',
 			'after_paging'       => '',
 			'type'               => 'array',
@@ -95,7 +95,7 @@ class AUI_Component_Pagination {
 				$output .= '</section>';
 			}
 
-			$output = str_replace( "screen-reader-text", "screen-reader-text sr-only" . ( $aui_bs5 ? ' visually-hidden' : '' ), $output );
+			$output = str_replace( "screen-reader-text", "screen-reader-text sr-only", $output );
 			$output = str_replace( "nav-links", "aui-nav-links", $output );
 		}
 

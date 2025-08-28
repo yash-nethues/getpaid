@@ -170,8 +170,8 @@ function getpaid_admin_subscription_details_metabox( $sub ) {
 			'amount'       => __( 'Amount', 'invoicing' ),
 			'start_date'   => __( 'Start Date', 'invoicing' ),
 			'renews_on'    => __( 'Next Payment', 'invoicing' ),
-			'renewals'     => __( 'Collected Payments', 'invoicing' ),
-			'item'         => $items_count > 1 ? __( 'Items', 'invoicing' ) : __( 'Item', 'invoicing' ),
+			'renewals'     => __( 'Payments', 'invoicing' ),
+			'item'         => _n( 'Item', 'Items', $items_count, 'invoicing' ),
 			'gateway'      => __( 'Payment Method', 'invoicing' ),
 			'profile_id'   => __( 'Profile ID', 'invoicing' ),
 			'status'       => __( 'Status', 'invoicing' ),
@@ -187,12 +187,7 @@ function getpaid_admin_subscription_details_metabox( $sub ) {
 		if ( isset( $fields['gateway'] ) ) {
 			unset( $fields['gateway'] );
 		}
-	} elseif ( $sub->is_last_renewal() ) {
-
-		if ( isset( $fields['renews_on'] ) ) {
-			$fields['renews_on'] = __( 'End Date', 'invoicing' );
-		}
-	}
+}
 
 	$profile_id = $sub->get_profile_id();
 	if ( empty( $profile_id ) && isset( $fields['profile_id'] ) ) {
@@ -283,26 +278,7 @@ add_action( 'getpaid_subscription_admin_display_subscription', 'getpaid_admin_su
  * @param WPInv_Subscription $subscription
  */
 function getpaid_admin_subscription_metabox_display_start_date( $subscription ) {
-
-	if ( $subscription->has_status( 'active trialling' ) && getpaid_payment_gateway_supports( $subscription->get_gateway(), 'subscription_date_change' ) ) {
-		aui()->input(
-			array(
-				'type'        => 'text',
-				'id'          => 'wpinv_subscription_date_created',
-				'name'        => 'wpinv_subscription_date_created',
-				'label'       => __( 'Start Date', 'invoicing' ),
-				'label_type'  => 'hidden',
-				'placeholder' => 'YYYY-MM-DD',
-				'value'       => esc_attr( $subscription->get_date_created( 'edit' ) ),
-				'no_wrap'     => true,
-				'size'        => 'sm',
-			),
-			true
-		);
-	} else {
-		echo esc_html( getpaid_format_date_value( $subscription->get_date_created() ) );
-	}
-
+	echo esc_html( getpaid_format_date_value( $subscription->get_date_created() ) );
 }
 add_action( 'getpaid_subscription_admin_display_start_date', 'getpaid_admin_subscription_metabox_display_start_date' );
 
@@ -312,25 +288,7 @@ add_action( 'getpaid_subscription_admin_display_start_date', 'getpaid_admin_subs
  * @param WPInv_Subscription $subscription
  */
 function getpaid_admin_subscription_metabox_display_renews_on( $subscription ) {
-
-	if ( $subscription->has_status( 'active trialling' ) && getpaid_payment_gateway_supports( $subscription->get_gateway(), 'subscription_date_change' ) ) {
-		aui()->input(
-			array(
-				'type'        => 'text',
-				'id'          => 'wpinv_subscription_expiration',
-				'name'        => 'wpinv_subscription_expiration',
-				'label'       => __( 'Renews On', 'invoicing' ),
-				'label_type'  => 'hidden',
-				'placeholder' => 'YYYY-MM-DD',
-				'value'       => esc_attr( $subscription->get_expiration( 'edit' ) ),
-				'no_wrap'     => true,
-				'size'        => 'sm',
-			),
-			true
-		);
-	} else {
-		echo esc_html( getpaid_format_date_value( $subscription->get_expiration() ) );
-	}
+	echo esc_html( getpaid_format_date_value( $subscription->get_expiration() ) );
 }
 add_action( 'getpaid_subscription_admin_display_renews_on', 'getpaid_admin_subscription_metabox_display_renews_on' );
 
@@ -340,36 +298,10 @@ add_action( 'getpaid_subscription_admin_display_renews_on', 'getpaid_admin_subsc
  * @param WPInv_Subscription $subscription
  */
 function getpaid_admin_subscription_metabox_display_renewals( $subscription ) {
-
-	$max_bills    = $subscription->get_bill_times();
-	$times_billed = (int) $subscription->get_times_billed();
-
-	if ( $subscription->has_status( 'active trialling' ) && getpaid_payment_gateway_supports( $subscription->get_gateway(), 'subscription_bill_times_change' ) ) {
-		aui()->input(
-			array(
-				'type'             => 'number',
-				'id'               => 'wpinv_subscription_max_bill_times',
-				'name'             => 'wpinv_subscription_max_bill_times',
-				'label'            => __( 'Maximum bill times', 'invoicing' ),
-				'label_type'       => 'hidden',
-				'placeholder'      => __( 'Unlimited', 'invoicing' ),
-				'value'            => empty( $max_bills ) ? '' : (int) $max_bills,
-				'no_wrap'          => true,
-				'size'             => 'sm',
-				'input_group_left' => sprintf(
-					// translators: %d: Number of times billed
-					__( '%d of', 'invoicing' ),
-					$times_billed
-				),
-			),
-			true
-		);
-	} else {
-		echo esc_html( $times_billed ) . ' / ' . ( empty( $max_bills ) ? '&infin;' : (int) $max_bills );
-	}
+	$max_bills = $subscription->get_bill_times();
+	echo ( (int) $subscription->get_times_billed() ) . ' / ' . ( empty( $max_bills ) ? '&infin;' : (int) $max_bills );
 }
 add_action( 'getpaid_subscription_admin_display_renewals', 'getpaid_admin_subscription_metabox_display_renewals' );
-
 /**
  * Displays the subscription item.
  *
@@ -437,7 +369,6 @@ function getpaid_admin_subscription_metabox_display_profile_id( $subscription ) 
 			'value'             => esc_attr( $profile_id ),
 			'input_group_right' => '',
 			'no_wrap'           => true,
-			'size'              => 'sm',
 		),
 		true
 	);
@@ -456,10 +387,10 @@ add_action( 'getpaid_subscription_admin_display_profile_id', 'getpaid_admin_subs
  * @param WPInv_Subscription $subscription
  */
 function getpaid_admin_subscription_update_metabox( $subscription ) {
-	global $aui_bs5;
 
 	?>
 	<div class="mt-3">
+
 		<?php
 			aui()->select(
 				array(
@@ -477,7 +408,8 @@ function getpaid_admin_subscription_update_metabox( $subscription ) {
 			);
 		?>
 
-		<div class="mt-2 px-3 py-2 bg-light border-top" style="margin:-12px">
+		<div class="mt-2 px-3 py-2 bg-light border-top" style="margin: -12px;">
+
 		<?php
 			submit_button( __( 'Update', 'invoicing' ), 'primary', 'submit', false );
 
@@ -486,7 +418,7 @@ function getpaid_admin_subscription_update_metabox( $subscription ) {
 			$title  = esc_attr__( 'Are you sure you want to extend the subscription and generate a new invoice that will be automatically marked as paid?', 'invoicing' );
 
 			if ( $subscription->is_active() ) {
-				echo "<a href='" . esc_url( $url ) . "' class='" . ( $aui_bs5 ? 'float-end' : 'float-right' ) . " button button-secondary' onclick='return confirm(\"" . esc_attr( $title ) . "\")' title='" . esc_attr__( 'Renew subscription manually', 'invoicing' ) . "'>" . esc_html( $anchor ) . "</a>";
+			echo "<a href='" . esc_url( $url ) . "' class='float-right text-muted' onclick='return confirm(\"" . esc_attr( $title ) . "\")'>" . esc_html( $anchor ) . "</a>";
 			}
 
 	echo '</div></div>';
@@ -600,15 +532,14 @@ function getpaid_admin_subscription_invoice_details_metabox( $subscription, $str
 									break;
 
 								case 'invoice':
+										$link    = esc_url( get_edit_post_link( $payment->get_id() ) );
+
 										if ( ! is_admin() ) {
-											$link = $payment->get_view_url();
-										} else {
-											$link = get_edit_post_link( $payment->get_id() );
+										$link = esc_url( $payment->get_view_url() );
 										}
 
 										$invoice = esc_html( $payment->get_number() );
-
-										echo wp_kses_post( "<a href='" . ( $link ? esc_url( $link ) : '#' ) . "'>$invoice</a>" );
+										echo wp_kses_post( "<a href='$link'>$invoice</a>" );
 									break;
 										}
 

@@ -9,78 +9,6 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Queries the customers database.
- *
- * @param array $args Query arguments.For a list of all supported args, refer to GetPaid_Customers_Query::prepare_query()
- * @param string $return 'results' returns the found customers, $count returns the total count while 'query' returns GetPaid_Customers_Query
- *
- *
- * @return int|array|GetPaid_Customer[]|GetPaid_Customers_Query
- */
-function getpaid_get_customers( $args = array(), $return = 'results' ) {
-
-	// Do not retrieve all fields if we just want the count.
-	if ( 'count' === $return ) {
-		$args['fields'] = 'id';
-		$args['number'] = 1;
-	}
-
-	// Do not count all matches if we just want the results.
-	if ( 'results' === $return ) {
-		$args['count_total'] = false;
-	}
-
-	$query = new GetPaid_Customers_Query( $args );
-
-	if ( 'results' === $return ) {
-		return $query->get_results();
-	}
-
-	if ( 'count' === $return ) {
-		return $query->get_total();
-	}
-
-	return $query;
-}
-
-/**
- * Retrieves a customer.
- *
- * @param int|string|object|GetPaid_Customer $customer customer id, email or object.
- * @return GetPaid_Customer|null
- */
-function getpaid_get_customer( $customer ) {
-
-    if ( empty( $customer ) ) {
-        return null;
-    }
-
-    // Retrieve the customer.
-    if ( ! is_a( $customer, 'GetPaid_Customer' ) ) {
-        $customer = new GetPaid_Customer( $customer );
-    }
-
-    // Check if it exists.
-    if ( $customer->exists() ) {
-        return $customer;
-    }
-
-    return null;
-}
-
-/**
- * Fetch customer by user ID.
- *
- * @return GetPaid_Customer|null
- * @since 1.0.0
- */
-function getpaid_get_customer_by_user_id( $user_id ) {
-    return getpaid_get_customer(
-        GetPaid_Customer::get_customer_id_by( $user_id, 'user_id' )
-    );
-}
-
-/**
  *  Generates a users select dropdown.
  *
  * @since 1.0.0
@@ -121,21 +49,6 @@ function wpinv_get_capability( $capalibilty = 'manage_invoicing' ) {
  */
 function wpinv_current_user_can_manage_invoicing() {
     return current_user_can( wpinv_get_capability() );
-}
-
-/**
- * Returns whether the current user has the specified getpaid capability.
- *
- * @since 2.7.8
- *
- * @param string $capability Capability name.
- * @param mixed  $args    Optional further parameters, typically starting with an object.
- * @return bool Whether the current user has the given capability.
- */
-function wpinv_current_user_can( $capability, $args = array() ) {
-	$can = wpinv_current_user_can_manage_invoicing();
-
-	return apply_filters( 'getpaid_current_user_can', $can, $capability, $args );
 }
 
 /**
@@ -297,14 +210,6 @@ function getpaid_display_address_edit_tab() {
         ) . '</div>';
     }
 
-    $customer = getpaid_get_customer_by_user_id( get_current_user_id() );
-
-    if ( empty( $customer ) ) {
-        $customer = new GetPaid_Customer( 0 );
-        $customer->clone_user( get_current_user_id() );
-        $customer->save();
-    }
-
     ob_start();
     ?>
         <div class="bsui">
@@ -315,8 +220,6 @@ function getpaid_display_address_edit_tab() {
 
                     foreach ( getpaid_user_address_fields() as $key => $label ) {
 
-                        $value = $customer->get( $key );
-
 					// Display the country.
 					if ( 'country' == $key ) {
 
@@ -325,7 +228,7 @@ function getpaid_display_address_edit_tab() {
 								'options'     => wpinv_get_country_list(),
 								'name'        => 'getpaid_address[' . esc_attr( $key ) . ']',
 								'id'          => 'wpinv-' . sanitize_html_class( $key ),
-								'value'       => sanitize_text_field( $value ),
+								'value'       => sanitize_text_field( getpaid_get_user_address_field( get_current_user_id(), $key ) ),
 								'placeholder' => $label,
 								'label'       => wp_kses_post( $label ),
 								'label_type'  => 'vertical',
@@ -340,8 +243,8 @@ function getpaid_display_address_edit_tab() {
 					elseif ( 'state' == $key ) {
 
 						getpaid_get_states_select_markup(
-                            $customer->get( 'country' ),
-							$value,
+							getpaid_get_user_address_field( get_current_user_id(), 'country' ),
+							getpaid_get_user_address_field( get_current_user_id(), 'state' ),
 							$label,
 							$label,
 							'',
@@ -361,7 +264,7 @@ function getpaid_display_address_edit_tab() {
                                 'label'       => wp_kses_post( $label ),
                                 'label_type'  => 'vertical',
                                 'type'        => 'text',
-                                'value'       => sanitize_text_field( $value ),
+                                'value'       => sanitize_text_field( getpaid_get_user_address_field( get_current_user_id(), $key ) ),
                                 'class'       => 'getpaid-address-field',
                             ),
                             true
@@ -378,7 +281,7 @@ function getpaid_display_address_edit_tab() {
                             'label'       => __( 'Other email addresses', 'invoicing' ),
                             'label_type'  => 'vertical',
                             'type'        => 'text',
-                            'value'       => sanitize_text_field( $customer->get( 'email_cc' ) ),
+                            'value'       => sanitize_text_field( get_user_meta( get_current_user_id(), '_wpinv_email_cc', true ) ),
                             'class'       => 'getpaid-address-field',
                             'help_text'   => __( 'Optionally provide other email addresses where we should send payment notifications', 'invoicing' ),
                         ),
@@ -424,26 +327,21 @@ function getpaid_save_address_edit_tab( $data ) {
         return;
     }
 
-    $data     = $data['getpaid_address'];
-    $customer = getpaid_get_customer_by_user_id( get_current_user_id() );
-
-    if ( empty( $customer ) ) {
-        $customer = new GetPaid_Customer( 0 );
-        $customer->clone_user( get_current_user_id() );
-    }
+    $data    = $data['getpaid_address'];
+    $user_id = get_current_user_id();
 
     foreach ( array_keys( getpaid_user_address_fields() ) as $field ) {
 
         if ( isset( $data[ $field ] ) ) {
-            $customer->set( $field, sanitize_text_field( $data[ $field ] ) );
+            $value = sanitize_text_field( $data[ $field ] );
+            update_user_meta( $user_id, '_wpinv_' . $field, $value );
         }
     }
 
     if ( isset( $data['email_cc'] ) ) {
-        $customer->set( 'email_cc', sanitize_text_field( $data['email_cc'] ) );
+        update_user_meta( $user_id, '_wpinv_email_cc', sanitize_text_field( $data['email_cc'] ) );
     }
 
-    $customer->save();
     wpinv_set_error( 'address_updated' );
 }
 add_action( 'getpaid_authenticated_action_edit_billing_details', 'getpaid_save_address_edit_tab' );
@@ -740,32 +638,6 @@ add_action( 'bp_setup_components', 'getpaid_setup_buddypress_integration' );
 /**
  * Checks if a given user has purchased a given item.
  *
- * @since 2.7.3
- * @param int $item_id The item id.
- * @return int The IDs of users who purchased the item.
- */
-function getpaid_user_ids_who_purchased_item( $item_id ) {
-    global $wpdb;
-
-    if ( empty( $item_id ) ) {
-        return false;
-    }
-
-    $ids = $wpdb->get_col(
-        $wpdb->prepare(
-            "SELECT DISTINCT invoices.post_author FROM {$wpdb->prefix}getpaid_invoice_items AS items
-            INNER JOIN {$wpdb->posts} AS invoices ON invoices.ID = items.post_id
-            WHERE items.item_id = %d AND invoices.post_status = 'publish'",
-            $item_id
-        )
-    );
-
-    return wp_parse_id_list( $ids );
-}
-
-/**
- * Returns an array of user IDs who purchased a given item.
- *
  * @since 2.6.17
  * @param int $user_id The user id.
  */
@@ -789,95 +661,3 @@ function getpaid_has_user_purchased_item( $user_id, $item_id ) {
 
     return ! empty( $count );
 }
-
-/**
- * Queries the db for the total spend by a given user ID.
- *
- * @since 2.6.17
- * @param int $user_id The user id.
- */
-function getpaid_get_user_total_spend( $user_id ) {
-    $args = array(
-        'data'           => array(
-
-            'total' => array(
-                'type'     => 'invoice_data',
-                'function' => 'SUM',
-                'name'     => 'total_sales',
-            ),
-
-        ),
-        'where'          => array(
-
-            'author' => array(
-                'type'     => 'post_data',
-                'value'    => absint( $user_id ),
-                'key'      => 'posts.post_author',
-                'operator' => '=',
-            ),
-
-        ),
-        'query_type'     => 'get_var',
-        'invoice_status' => array( 'wpi-renewal', 'wpi-processing', 'publish' ),
-    );
-
-    return wpinv_round_amount( GetPaid_Reports_Helper::get_invoice_report_data( $args ) );
-}
-
-/**
- * Queries the db for the total invoices by a given user ID.
- *
- * @since 2.6.17
- * @param int $user_id The user id.
- */
-function getpaid_count_user_invoices( $user_id ) {
-    $args = array(
-        'data'           => array(
-
-            'ID' => array(
-                'type'     => 'post_data',
-                'function' => 'COUNT',
-                'name'     => 'count',
-                'distinct' => true,
-            ),
-
-        ),
-        'where'          => array(
-
-            'author' => array(
-                'type'     => 'post_data',
-                'value'    => absint( $user_id ),
-                'key'      => 'posts.post_author',
-                'operator' => '=',
-            ),
-
-        ),
-        'query_type'     => 'get_var',
-        'invoice_status' => array_keys( wpinv_get_invoice_statuses() ),
-    );
-
-    return absint( GetPaid_Reports_Helper::get_invoice_report_data( $args ) );
-}
-
-/**
- * When a user is deleted in WordPress, delete corresponding GetPaid data.
- *
- * @since 2.8.8
- *
- * @param int $user_id User ID being deleted.
- * @param int|null $reassign ID of the user to reassign posts and links to.
- *                           Default null, for no reassignment.
- * @param WP_User  $user     WP_User object of the user to delete.
- */
-function getpaid_delete_user_data( $user_id, $reassign, $user ) {
-	global $wpdb;
-
-	// Delete customer data.
-	$wpdb->delete(
-		$wpdb->prefix . 'getpaid_customers',
-		array(
-			'user_id' => (int) $user_id,
-		)
-	);
-}
-add_action( 'delete_user', 'getpaid_delete_user_data', 10, 3 );

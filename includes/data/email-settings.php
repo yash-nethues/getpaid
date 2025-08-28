@@ -15,7 +15,7 @@ $overdue_days_options       = array();
 $overdue_days_options['0']  = __( 'On the Due Date', 'invoicing' );
 $overdue_days_options['1']  = __( '1 day after Due Date', 'invoicing' );
 
-for ( $i = 2; $i <= 45; $i++ ) {
+for ( $i = 2; $i <= 10; $i++ ) {
     $overdue_days_options[ "$i" ] = wp_sprintf( __( '%d days after Due Date', 'invoicing' ), $i );
 }
 
@@ -24,7 +24,7 @@ $renewal_days_options       = array();
 $renewal_days_options['0']  = __( 'On the renewal date', 'invoicing' );
 $renewal_days_options['1']  = __( '1 day before the renewal date', 'invoicing' );
 
-for ( $i = 2; $i <= 45; $i++ ) {
+for ( $i = 2; $i <= 10; $i++ ) {
     $renewal_days_options[ "$i" ]   = wp_sprintf( __( '%d days before the renewal date', 'invoicing' ), $i );
 }
 
@@ -658,67 +658,11 @@ return array(
             'name'  => __( 'Email Content', 'invoicing' ),
             'desc'  => wpinv_get_merge_tags_help_text( true ),
             'type'  => 'rich_editor',
-            'std'   => __( '<p>Hi {full_name},</p><p>This is just a friendly reminder that your subscription for invoice <a href="{invoice_link}">#{invoice_number}</a> will renew on {subscription_renewal_date} for amount {subscription_recurring_amount}.</p>', 'invoicing' ),
+            'std'   => __( '<p>Hi {full_name},</p><p>This is just a friendly reminder that your subscription for invoice <a href="{invoice_link}">#{invoice_number}</a> will renew on {subscription_renewal_date}.</p>', 'invoicing' ),
             'class' => 'large',
             'size'  => 10,
         ),
 
-    ),
-
-    'subscription_active' => array(
-
-        'email_subscription_active_header'    => array(
-            'id'   => 'email_subscription_active_header',
-            'name' => '<h3>' . __( 'Subscription Active', 'invoicing' ) . '</h3>',
-            'desc' => __( 'This email is sent when a subscription is activated.', 'invoicing' ),
-            'type' => 'header',
-        ),
-
-        'email_subscription_active_active'    => array(
-            'id'   => 'email_subscription_active_active',
-            'name' => __( 'Enable/Disable', 'invoicing' ),
-            'desc' => __( 'Enable this email notification', 'invoicing' ),
-            'type' => 'checkbox',
-            'std'  => 1,
-        ),
-
-        'email_subscription_active_admin_bcc' => array(
-            'id'   => 'email_subscription_active_admin_bcc',
-            'name' => __( 'Enable Admin BCC', 'invoicing' ),
-            'desc' => __( 'Check if you want to send a copy of this notification email to the site admin.', 'invoicing' ),
-            'type' => 'checkbox',
-            'std'  => 1,
-        ),
-
-        'email_subscription_active_subject'   => array(
-            'id'       => 'email_subscription_active_subject',
-            'name'     => __( 'Subject', 'invoicing' ),
-            'desc'     => __( 'Enter the subject line for the subscription active email.', 'invoicing' ),
-            'help-tip' => true,
-            'type'     => 'text',
-            'std'      => __( '[{site_title}] Your subscription #{subscription_id} has been activated', 'invoicing' ),
-            'size'     => 'large',
-        ),
-
-        'email_subscription_active_heading'   => array(
-            'id'       => 'email_subscription_active_heading',
-            'name'     => __( 'Email Heading', 'invoicing' ),
-            'desc'     => __( 'Enter the main heading of this email.', 'invoicing' ),
-            'help-tip' => true,
-            'type'     => 'text',
-            'std'      => __( 'Subscription Activated', 'invoicing' ),
-            'size'     => 'large',
-        ),
-
-        'email_subscription_active_body'      => array(
-            'id'    => 'email_subscription_active_body',
-            'name'  => __( 'Email Content', 'invoicing' ),
-            'desc'  => wpinv_get_merge_tags_help_text( true ),
-            'type'  => 'rich_editor',
-            'std'   => __( '<p>Hi {first_name},</p><p>Your subscription #{subscription_id} for {subscription_name} has been activated.</p>', 'invoicing' ),
-            'class' => 'large',
-            'size'  => 10,
-        ),
     ),
 
     'subscription_trial'     => array(

@@ -1,6 +1,5 @@
 "use strict";
 
-
 jQuery(function ($) {
 
 	// Select 2.

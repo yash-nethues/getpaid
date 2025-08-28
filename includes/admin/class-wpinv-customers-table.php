@@ -27,15 +27,13 @@ class WPInv_Customers_Table extends WP_List_Table {
 	 * @var int Number of items per page
 	 * @since 1.0.19
 	 */
-	public $per_page = 25;
+	public $per_page = 10;
 
 	/**
 	 * @var int Number of items
 	 * @since 1.0.19
 	 */
-	public $total_count = 0;
-
-	public $query;
+	public $total = 0;
 
 	/**
 	 * Get things started
@@ -65,7 +63,7 @@ class WPInv_Customers_Table extends WP_List_Table {
 	 * @return string Name of the primary column.
 	 */
 	protected function get_primary_column_name() {
-		return 'customer';
+		return 'name';
 	}
 
 	/**
@@ -73,14 +71,14 @@ class WPInv_Customers_Table extends WP_List_Table {
 	 *
 	 * @since 1.0.19
 	 *
-	 * @param GetPaid_Customer $customer
+	 * @param WP_User $item
 	 * @param string $column_name The name of the column
 	 *
 	 * @return string Column Name
 	 */
-	public function column_default( $customer, $column_name ) {
-		$value = esc_html( $customer->get( $column_name ) );
-		return apply_filters( 'wpinv_customers_table_column' . $column_name, $value, $customer );
+	public function column_default( $item, $column_name ) {
+		$value = esc_html( get_user_meta( $item->ID, '_wpinv_' . $column_name, true ) );
+		return apply_filters( 'wpinv_customers_table_column' . $column_name, $value, $item );
 	}
 
 	/**
@@ -88,12 +86,12 @@ class WPInv_Customers_Table extends WP_List_Table {
 	 *
 	 * @since 1.0.19
 	 *
-	 * @param GetPaid_Customer $customer
+	 * @param WP_User $user
 	 *
 	 * @return string Column Name
 	 */
-	public function column_country( $customer ) {
-		$country = wpinv_sanitize_country( $customer->get( 'country' ) );
+	public function column_country( $user ) {
+		$country = wpinv_sanitize_country( $user->_wpinv_country );
 		if ( $country ) {
 			$country = wpinv_country_name( $country );
 		}
@@ -105,13 +103,13 @@ class WPInv_Customers_Table extends WP_List_Table {
 	 *
 	 * @since 1.0.19
 	 *
-	 * @param GetPaid_Customer $customer
+	 * @param WP_User $user
 	 *
 	 * @return string Column Name
 	 */
-	public function column_state( $customer ) {
-		$country = wpinv_sanitize_country( $customer->get( 'country' ) );
-		$state   = $customer->get( 'state' );
+	public function column_state( $user ) {
+		$country = wpinv_sanitize_country( $user->_wpinv_country );
+		$state   = $user->_wpinv_state;
 		if ( $state ) {
 			$state = wpinv_state_name( $state, $country );
 		}
@@ -124,12 +122,12 @@ class WPInv_Customers_Table extends WP_List_Table {
 	 *
 	 * @since 1.0.19
 	 *
-	 * @param GetPaid_Customer $customer
+	 * @param WP_User $user
 	 *
 	 * @return string Column Name
 	 */
-	public function column_date_created( $customer ) {
-		return getpaid_format_date_value( $customer->get( 'date_created' ) );
+	public function column_signup( $user ) {
+		return getpaid_format_date_value( $user->user_registered );
 	}
 
 	/**
@@ -137,12 +135,12 @@ class WPInv_Customers_Table extends WP_List_Table {
 	 *
 	 * @since 1.0.19
 	 *
-	 * @param GetPaid_Customer $customer
+	 * @param WP_User $user
 	 *
 	 * @return string Column Name
 	 */
-	public function column_purchase_value( $customer ) {
-		return wpinv_price( (float) $customer->get( 'purchase_value' ) );
+	public function column_total( $user ) {
+		return wpinv_price( $this->column_total_raw( $user ) );
 	}
 
 	/**
@@ -150,49 +148,165 @@ class WPInv_Customers_Table extends WP_List_Table {
 	 *
 	 * @since 1.0.19
 	 *
-	 * @param GetPaid_Customer $customer
+	 * @param WP_User $user
+	 *
+	 * @return float
+	 */
+	public function column_total_raw( $user ) {
+
+		$args = array(
+			'data'           => array(
+
+				'total' => array(
+					'type'     => 'invoice_data',
+					'function' => 'SUM',
+					'name'     => 'total_sales',
+				),
+
+			),
+			'where'          => array(
+
+				'author' => array(
+					'type'     => 'post_data',
+					'value'    => absint( $user->ID ),
+					'key'      => 'posts.post_author',
+					'operator' => '=',
+				),
+
+			),
+			'query_type'     => 'get_var',
+			'invoice_status' => array( 'wpi-renewal', 'wpi-processing', 'publish' ),
+		);
+
+		return wpinv_round_amount( GetPaid_Reports_Helper::get_invoice_report_data( $args ) );
+
+	}
+
+	/**
+	 * Displays the total spent column.
+	 *
+	 * @since 1.0.19
+	 *
+	 * @param WP_User $user
 	 *
 	 * @return string Column Name
 	 */
-	public function column_purchase_count( $customer ) {
-		$value = $customer->get( 'purchase_count' );
-		$url   = $customer->get( 'user_id' ) ? add_query_arg( array( 'post_type' => 'wpi_invoice', 'author' => $customer->get( 'user_id' ), ), admin_url( 'edit.php' ) ) : '';
+	public function column_invoices( $user ) {
 
-		return ( empty( $value ) || empty( $url ) ) ? (int) $value : '<a href="' . esc_url( $url ) . '">' . absint( $value ) . '</a>';
+		$args = array(
+			'data'           => array(
 
+				'ID' => array(
+					'type'     => 'post_data',
+					'function' => 'COUNT',
+					'name'     => 'count',
+					'distinct' => true,
+				),
+
+			),
+			'where'          => array(
+
+				'author' => array(
+					'type'     => 'post_data',
+					'value'    => absint( $user->ID ),
+					'key'      => 'posts.post_author',
+					'operator' => '=',
+				),
+
+			),
+			'query_type'     => 'get_var',
+			'invoice_status' => array_keys( wpinv_get_invoice_statuses() ),
+		);
+
+		$value = absint( GetPaid_Reports_Helper::get_invoice_report_data( $args ) );
+		$url   = add_query_arg( array( 'post_type' => 'wpi_invoice', 'author' => $user->ID ), admin_url( 'edit.php' ) );
+		return empty( $value ) ? '0' : '<a href="' . esc_url( $url ) . '">' . absint( $value ) . '</a>';
+
+	}
+
+	/**
+	 * Generates content for a single row of the table
+	 * @since 1.0.19
+	 *
+	 * @param int $item The user id.
+	 */
+	public function single_row( $item ) {
+		$item = get_user_by( 'id', $item );
+
+		if ( empty( $item ) ) {
+			return;
+		}
+
+		echo '<tr>';
+		$this->single_row_columns( $item );
+		echo '</tr>';
 	}
 
 	/**
 	 * Displays the customers name
 	 *
-	 * @param  GetPaid_Customer $customer customer.
+	 * @param  WP_User $customer customer.
 	 * @return string
 	 */
-	public function column_customer( $customer ) {
-
-		$first_name = $customer->get( 'first_name' );
-		$last_name  = $customer->get( 'last_name' );
-		$email      = $customer->get( 'email' );
-		$avatar     = get_avatar( $customer->get( 'user_id' ) ? $customer->get( 'user_id' ) : $email, 32 );
+	public function column_name( $customer ) {
 
 		// Customer view URL.
-		$view_url    = $customer->get( 'user_id' ) ? esc_url( add_query_arg( 'user_id', $customer->get( 'user_id' ), admin_url( 'user-edit.php' ) ) ) : false;
-		$row_actions = $view_url ? $this->row_actions(
+		$view_url    = esc_url( add_query_arg( 'user_id', $customer->ID, admin_url( 'user-edit.php' ) ) );
+		$row_actions = $this->row_actions(
 			array(
 				'view' => '<a href="' . $view_url . '#getpaid-fieldset-billing">' . __( 'Edit Details', 'invoicing' ) . '</a>',
 			)
-		) : '';
+		);
+
+		// Get user's address.
+		$address = wpinv_get_user_address( $customer->ID );
+
+		// Customer email address.
+		$email       = sanitize_email( $customer->user_email );
+
+		// Customer's avatar.
+		$avatar = esc_url( get_avatar_url( $email ) );
+		$avatar = "<img src='$avatar' height='32' width='32'/>";
 
 		// Customer's name.
-		$name   = esc_html( trim( "$first_name $last_name" ) );
+		$name   = esc_html( "{$address['first_name']} {$address['last_name']}" );
+
+		if ( empty( trim( $name ) ) ) {
+			$name = esc_html( $address['display_name'] );
+		}
 
 		if ( ! empty( $name ) ) {
 			$name = "<div style='overflow: hidden;height: 18px;'>$name</div>";
 		}
 
-		$email = "<div class='row-title'><a href='mailto:$email'>$email</a></div>";
+		$email = "<div class='row-title'><a href='$view_url'>$email</a></div>";
 
 		return "<div style='display: flex;'><div>$avatar</div><div style='margin-left: 10px;'>$name<strong>$email</strong>$row_actions</div></div>";
+
+	}
+
+	/**
+	 * Retrieve the table columns
+	 *
+	 * @since 1.0.19
+	 * @return array $columns Array of all the list table columns
+	 */
+	public function get_columns() {
+
+		$columns = array(
+			'name'     => __( 'Name', 'invoicing' ),
+			'country'  => __( 'Country', 'invoicing' ),
+			'state'    => __( 'State', 'invoicing' ),
+			'city'     => __( 'City', 'invoicing' ),
+			'zip'      => __( 'ZIP', 'invoicing' ),
+			'address'  => __( 'Address', 'invoicing' ),
+			'phone'    => __( 'Phone', 'invoicing' ),
+			'company'  => __( 'Company', 'invoicing' ),
+			'invoices' => __( 'Invoices', 'invoicing' ),
+			'total'    => __( 'Total Spend', 'invoicing' ),
+			'signup'   => __( 'Date created', 'invoicing' ),
+		);
+		return apply_filters( 'wpinv_customers_table_columns', $columns );
 
 	}
 
@@ -220,106 +334,64 @@ class WPInv_Customers_Table extends WP_List_Table {
 	 *  Prepares the display query
 	 */
 	public function prepare_query() {
+		global $wpdb;
 
-		// Prepare query args.
-		$query = array(
-			'number' => $this->per_page,
-			'paged'  => $this->get_paged(),
+		$post_types = '';
+
+		foreach ( array_keys( getpaid_get_invoice_post_types() ) as $post_type ) {
+			$post_types .= $wpdb->prepare( 'post_type=%s OR ', $post_type );
+		}
+
+		$post_types = rtrim( $post_types, ' OR' );
+
+		// Maybe search.
+		if ( ! empty( $_POST['s'] ) ) {
+			$users = get_users(
+				array(
+					'search'         => '*' . sanitize_text_field( urldecode( $_POST['s'] ) ) . '*',
+					'search_columns' => array( 'user_login', 'user_email', 'display_name' ),
+					'fields'         => 'ID',
+				)
+			);
+
+			$users      = implode( ', ', $users );
+			$post_types = "($post_types) AND ( post_author IN ( $users ) )";
+		}
+
+		// Users with invoices.
+    	$customers = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT( post_author ) FROM $wpdb->posts WHERE $post_types LIMIT %d,%d",
+				$this->get_paged() * 10 - 10,
+				$this->per_page
+			)
 		);
 
-		foreach ( array( 'orderby', 'order', 's' ) as $field ) {
-			if ( isset( $_GET[ $field ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-				$query[ $field ] = wpinv_clean( rawurlencode_deep( $_GET[ $field ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			}
-		}
+		$this->items = $customers;
+		$this->total = (int) $wpdb->get_var( "SELECT COUNT( DISTINCT( post_author ) ) FROM $wpdb->posts WHERE $post_types" );
 
-		foreach ( GetPaid_Customer_Data_Store::get_database_fields() as $field => $type ) {
-
-			if ( isset( $_GET[ $field ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-				$query[ $field ] = wpinv_clean( rawurlencode_deep( $_GET[ $field ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			}
-
-			// Min max.
-			if ( '%f' === $type || '%d' === $type ) {
-
-				if ( isset( $_GET[ $field . '_min' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-					$query[ $field . '_min' ] = floatval( $_GET[ $field . '_min' ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-				}
-
-				if ( isset( $_GET[ $field . '_max' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-					$query[ $field . '_max' ] = floatval( $_GET[ $field . '_max' ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-				}
-			}
-		}
-
-		// Prepare class properties.
-		$this->query       = getpaid_get_customers( $query, 'query' );
-		$this->total_count = $this->query->get_total();
-		$this->items       = $this->query->get_results();
 	}
 
 	/**
 	 * Setup the final data for the table
 	 *
+	 * @since 1.0.19
+	 * @return void
 	 */
 	public function prepare_items() {
-
-		$columns  = $this->get_columns();
-		$hidden   = array();
-		$sortable = $this->get_sortable_columns();
-		$this->prepare_query();
-
+		$columns               = $this->get_columns();
+		$hidden                = array(); // No hidden columns
+		$sortable              = $this->get_sortable_columns();
 		$this->_column_headers = array( $columns, $hidden, $sortable );
+		$this->prepare_query();
 
 		$this->set_pagination_args(
 			array(
-				'total_items' => $this->total_count,
+				'total_items' => $this->total,
 				'per_page'    => $this->per_page,
-				'total_pages' => ceil( $this->total_count / $this->per_page ),
+				'total_pages' => ceil( $this->total / $this->per_page ),
 			)
 		);
-	}
 
-	/**
-	 * Sortable table columns.
-	 *
-	 * @return array
-	 */
-	public function get_sortable_columns() {
-		$sortable = array(
-			'customer' => array( 'first_name', true ),
-		);
-
-		foreach ( GetPaid_Customer_Data_Store::get_database_fields() as $field => $type ) {
-			$sortable[ $field ] = array( $field, true );
-		}
-
-		return apply_filters( 'manage_getpaid_customers_sortable_table_columns', $sortable );
-	}
-
-	/**
-	 * Table columns
-	 *
-	 * @return array
-	 */
-	public function get_columns() {
-		$columns = array(
-			'customer' => __( 'Customer', 'invoicing' ),
-		);
-
-		// Add address fields.
-		foreach ( getpaid_user_address_fields() as $key => $value ) {
-
-			// Skip id, user_id and email.
-			if ( ! in_array( $key, array( 'id', 'user_id', 'email', 'purchase_value', 'purchase_count', 'date_created', 'date_modified', 'uuid', 'first_name', 'last_name' ), true ) ) {
-				$columns[ $key ] = $value;
-			}
-		}
-
-		$columns['purchase_value'] = __( 'Total Spend', 'invoicing' );
-		$columns['purchase_count'] = __( 'Invoices', 'invoicing' );
-		$columns['date_created']   = __( 'Date created', 'invoicing' );
-
-		return apply_filters( 'manage_getpaid_customers_table_columns', $columns );
 	}
 }

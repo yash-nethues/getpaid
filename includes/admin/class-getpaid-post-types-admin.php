@@ -147,14 +147,17 @@ class GetPaid_Post_Types_Admin {
 
 		// Link to item payment form.
 		if ( 'wpi_item' == $post->post_type ) {
-			if ( getpaid_item_type_supports( get_post_meta( $post->ID, '_wpinv_type', true ), 'buy_now' ) ) {
+
+			if ( in_array( get_post_meta( $post->ID, '_wpinv_type', true ), array( '', 'fee', 'custom' ), true ) ) {
+
 				$actions['buy'] = sprintf(
 					'<a href="%1$s">%2$s</a>',
 					esc_url( getpaid_embed_url( false, $post->ID . '|0' ) ),
 					esc_html( __( 'Buy', 'invoicing' ) )
 				);
+
 			}
-		}
+}
 
 		return $actions;
 	}
@@ -268,28 +271,10 @@ class GetPaid_Post_Types_Admin {
 				break;
 
 			case 'payment_date':
-				if ( $invoice->is_paid() || $invoice->is_refunded() ) {
+				if ( $invoice->is_paid() ) {
 					$date_time = esc_attr( $invoice->get_completed_date() );
 					$date      = esc_html( getpaid_format_date_value( $date_time, '&mdash;', true ) );
 					echo wp_kses_post( "<span title='$date_time'>$date</span>" );
-
-					if ( $_gateway = $invoice->get_gateway() ) {
-						$gateway_label = wpinv_get_gateway_admin_label( $_gateway );
-
-						if ( $transaction_url = $invoice->get_transaction_url() ) {
-							$gateway_label = '<a href="' . esc_url( $transaction_url ) . '" target="_blank" title="' . esc_attr__( 'Open transaction link', 'invoicing' ) . '">' . $gateway_label . '</a>';
-						}
-
-						$gateway = '<small class="meta bsui"><span class="fs-xs text-muted fst-normal">' . wp_sprintf( _x( 'Via %s', 'Paid via gateway', 'invoicing' ), $gateway_label ) . '</span></small>';
-					} else {
-						$gateway = '';
-					}
-
-					$gateway = apply_filters( 'getpaid_admin_invoices_list_table_gateway', $gateway, $invoice );
-
-					if ( $gateway ) {
-						echo wp_kses_post( $gateway ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-					}
 				} else {
 					echo '&mdash;';
 				}
@@ -318,16 +303,17 @@ class GetPaid_Post_Types_Admin {
 				break;
 
 			case 'status':
-				$status = esc_html( $invoice->get_status() );
+				$status       = esc_html( $invoice->get_status() );
+				$status_label = esc_html( $invoice->get_status_nicename() );
 
 				// If it is paid, show the gateway title.
 				if ( $invoice->is_paid() ) {
 					$gateway = esc_html( $invoice->get_gateway_title() );
 					$gateway = wp_sprintf( esc_attr__( 'Paid via %s', 'invoicing' ), esc_html( $gateway ) );
 
-					echo wp_kses_post( "<span class='bsui wpi-help-tip getpaid-invoice-statuss $status' title='$gateway'><span class='fs-base'>" . $invoice->get_status_label_html() . "</span></span>" );
+					echo wp_kses_post( "<mark class='wpi-help-tip getpaid-invoice-status $status' title='$gateway'><span>$status_label</span></mark>" );
 				} else {
-					echo wp_kses_post( "<span class='bsui getpaid-invoice-statuss $status'><span class='fs-base'>" . $invoice->get_status_label_html() . "</span></span>" );
+					echo wp_kses_post( "<mark class='getpaid-invoice-status $status'><span>$status_label</span></mark>" );
 				}
 
 				// If it is not paid, display the overdue and view status.
@@ -788,10 +774,6 @@ class GetPaid_Post_Types_Admin {
             );
 		}
 
-		$query->query_vars['meta_query'][] = array(
-			'key'     => '_wpinv_one_time',
-			'compare' => 'NOT EXISTS',
-		);
 	}
 
 	/**
@@ -881,51 +863,38 @@ class GetPaid_Post_Types_Admin {
 	}
 
 	/**
-	 * Add a post display state for special GetPaid pages in the page list table.
-	 *
-	 * @param array   $post_states An array of post display states.
-	 * @param WP_Post $post        The current post object.
-	 *
-	 * @return mixed
-	 */
-	public static function add_display_post_states( $post_states, $post ) {
-		if ( wpinv_get_option( 'success_page', 0 ) == $post->ID ) {
-			$post_states['getpaid_success_page'] = __( 'GetPaid Receipt Page', 'invoicing' );
-		}
+     * Add a post display state for special GetPaid pages in the page list table.
+     *
+     * @param array   $post_states An array of post display states.
+     * @param WP_Post $post        The current post object.
+     *
+     * @return mixed
+     */
+    public static function add_display_post_states( $post_states, $post ) {
+
+        if ( wpinv_get_option( 'success_page', 0 ) == $post->ID ) {
+            $post_states['getpaid_success_page'] = __( 'GetPaid Receipt Page', 'invoicing' );
+        }
 
 		foreach ( getpaid_get_invoice_post_types() as $post_type => $label ) {
-			$_post_type = str_replace( "wpi_", "", $post_type );
 
 			if ( wpinv_get_option( "{$post_type}_history_page", 0 ) == $post->ID ) {
-				$post_states[ "getpaid_{$post_type}_history_page" ] = wp_sprintf(
-					__( 'GetPaid %s History Page', 'invoicing' ),
-					$label
-				);
-			} else if ( wpinv_get_option( "{$_post_type}_history_page", 0 ) == $post->ID ) {
-				$post_states[ "getpaid_{$_post_type}_history_page" ] = wp_sprintf(
+				$post_states[ "getpaid_{$post_type}_history_page" ] = sprintf(
 					__( 'GetPaid %s History Page', 'invoicing' ),
 					$label
 				);
 			}
-		}
+}
 
 		if ( wpinv_get_option( 'invoice_subscription_page', 0 ) == $post->ID ) {
-			$post_states['getpaid_invoice_subscription_page'] = __( 'GetPaid Subscriptions Page', 'invoicing' );
-		}
+            $post_states['getpaid_invoice_subscription_page'] = __( 'GetPaid Subscription Page', 'invoicing' );
+        }
 
 		if ( wpinv_get_option( 'checkout_page', 0 ) == $post->ID ) {
-			$post_states['getpaid_checkout_page'] = __( 'GetPaid Checkout Page', 'invoicing' );
-		}
+            $post_states['getpaid_checkout_page'] = __( 'GetPaid Checkout Page', 'invoicing' );
+        }
 
-		if ( wpinv_get_option( 'checkout_page', 0 ) == $post->ID ) {
-			$post_states['getpaid_checkout_page'] = __( 'GetPaid Checkout Page', 'invoicing' );
-		}
-
-		if ( wpinv_get_option( 'failure_page', 0 ) == $post->ID ) {
-			$post_states['getpaid_failure_page'] = __( 'GetPaid Transaction Failed Page', 'invoicing' );
-		}
-
-		return $post_states;
+        return $post_states;
     }
 
 }

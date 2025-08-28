@@ -24,7 +24,7 @@ class GetPaid_Paypal_Gateway extends GetPaid_Payment_Gateway {
 	 *
 	 * @var array
 	 */
-    protected $supports = array( 'subscription', 'sandbox', 'single_subscription_group', 'refunds' );
+    protected $supports = array( 'subscription', 'sandbox', 'single_subscription_group' );
 
     /**
 	 * Payment method order.
@@ -79,7 +79,6 @@ class GetPaid_Paypal_Gateway extends GetPaid_Payment_Gateway {
 	 * Class constructor.
 	 */
 	public function __construct() {
-		parent::__construct();
 
         $this->title                = __( 'PayPal Standard', 'invoicing' );
         $this->method_title         = __( 'PayPal Standard', 'invoicing' );
@@ -88,16 +87,11 @@ class GetPaid_Paypal_Gateway extends GetPaid_Payment_Gateway {
 
 		add_filter( 'wpinv_subscription_cancel_url', array( $this, 'filter_cancel_subscription_url' ), 10, 2 );
 		add_filter( 'getpaid_paypal_args', array( $this, 'process_subscription' ), 10, 2 );
+        add_filter( 'getpaid_paypal_sandbox_notice', array( $this, 'sandbox_notice' ) );
 		add_filter( 'getpaid_get_paypal_connect_url', array( $this, 'maybe_get_connect_url' ), 10, 2 );
 		add_action( 'getpaid_authenticated_admin_action_connect_paypal', array( $this, 'connect_paypal' ) );
 		add_action( 'wpinv_paypal_connect', array( $this, 'display_connect_buttons' ) );
-
-		if ( $this->enabled ) {
-			add_filter( 'getpaid_paypal_sandbox_notice', array( $this, 'sandbox_notice' ) );
-			add_action( 'getpaid_paypal_subscription_cancelled', array( $this, 'subscription_cancelled' ) );
-			add_action( 'getpaid_delete_subscription', array( $this, 'subscription_cancelled' ) );
-			add_action( 'getpaid_refund_invoice_remotely', array( $this, 'refund_invoice' ) );
-		}
+		parent::__construct();
     }
 
     /**
@@ -258,7 +252,7 @@ class GetPaid_Paypal_Gateway extends GetPaid_Payment_Gateway {
 	protected function get_line_item_args_single_item( $invoice ) {
 		$this->delete_line_items();
 
-        $item_name = wp_sprintf( __( 'Invoice %s', 'invoicing' ), $invoice->get_number() );
+        $item_name = sprintf( __( 'Invoice #%s', 'invoicing' ), $invoice->get_number() );
 		$this->add_line_item( $item_name, 1, wpinv_round_amount( (float) $invoice->get_total(), 2, true ), $invoice->get_id() );
 
 		return $this->get_line_items();
@@ -310,11 +304,6 @@ class GetPaid_Paypal_Gateway extends GetPaid_Payment_Gateway {
 	 */
 	protected function add_line_item( $item_name, $quantity = 1, $amount = 0.0, $item_number = '' ) {
 		$index = ( count( $this->line_items ) / 4 ) + 1;
-
-		/**
-		 * Prevent error "Things don't appear to be working at the moment. (https://www.sandbox.paypal.com/webapps/hermes/error)"
-		 */
-		$item_name = str_replace( "#", "", $item_name );
 
 		$item = apply_filters(
 			'getpaid_paypal_line_item',
@@ -383,7 +372,7 @@ class GetPaid_Paypal_Gateway extends GetPaid_Payment_Gateway {
         $paypal_args['cmd'] = '_xclick-subscriptions';
 
         // Subscription name.
-        $paypal_args['item_name'] = wp_sprintf( __( 'Invoice %s', 'invoicing' ), $invoice->get_number() );
+        $paypal_args['item_name'] = sprintf( __( 'Invoice #%s', 'invoicing' ), $invoice->get_number() );
 
         // Get subscription args.
         $period                 = strtoupper( substr( $subscription->get_period(), 0, 1 ) );
@@ -475,7 +464,7 @@ class GetPaid_Paypal_Gateway extends GetPaid_Payment_Gateway {
             if ( isset( $paypal_args[ $arg ] ) ) {
                 unset( $paypal_args[ $arg ] );
             }
-		}
+}
 
         return apply_filters(
 			'getpaid_paypal_subscription_args',
@@ -484,99 +473,6 @@ class GetPaid_Paypal_Gateway extends GetPaid_Payment_Gateway {
         );
 
     }
-
-	/**
-	 * Refunds an invoice remotely.
-	 * 
-	 * @since 2.8.24
-	 * @param WPInv_Invoice $invoice Invoice object.
-	 */
-	public function refund_invoice( $invoice ) {
-
-		if ( $invoice->get_gateway() !== $this->id ) {
-			return;
-		}
-
-		$mode	= $this->is_sandbox( $invoice ) ? 'sandbox' : 'live';
-		$result = GetPaid_PayPal_API::refund_capture( $invoice->get_transaction_id(), array(), $mode );
-
-		if ( is_wp_error( $result ) ) {
-			$invoice->add_system_note(
-				sprintf(
-					// translators: %s is the error message.
-					__( 'An error occured while trying to refund invoice #%1$s in PayPal: %2$s', 'invoicing' ),
-					$invoice->get_id(),
-					$result->get_error_message()
-				)
-			);
-		} else {
-			$invoice->add_system_note(
-				sprintf(
-					// translators: %s is the refund ID.
-					__( 'Successfully refunded invoice #%1$s in PayPal. Refund ID: %2$s', 'invoicing' ),
-					$invoice->get_id(),
-					$result->id
-				)
-			);
-		}
-	}
-
-	/**
-	 * Cancels a subscription remotely.
-	 * 
-	 * @since 2.8.24
-	 * @param WPInv_Subscription $subscription Subscription object.
-	 */
-	public function subscription_cancelled( $subscription ) {
-
-		if ( $subscription->get_gateway() != $this->id ) {
-			return;
-		}
-
-		$invoice = $subscription->get_parent_invoice();
-
-		// Abort if the parent invoice does not exist.
-		if ( ! $invoice->exists() ) {
-			return;
-		}
-
-		$mode	= $this->is_sandbox( $invoice ) ? 'sandbox' : 'live';
-		$result = GetPaid_PayPal_API::cancel_subscription( 
-			$invoice->get_remote_subscription_id(), 
-			array(
-				'reason' => __(' Customer requested cancellation', 'invoicing' ),
-			), 
-			$mode 
-		);
-
-		if ( is_wp_error( $result ) ) {
-
-			$error = sprintf(
-				// translators: %s is the subscription ID.
-				__( 'An error occured while trying to cancel subscription #%s in PayPal.', 'invoicing' ),
-				$subscription->get_id()
-			);
-
-			getpaid_admin()->show_error( $error . ' ' . $result->get_error_message() );
-
-			if ( ! is_admin() ) {
-				wpinv_set_error( $result->get_error_code(), $error );
-			}
-
-			return;
-		}
-
-		if ( is_admin() ) {
-			getpaid_admin()->show_success(
-				sprintf(
-					// translators: %s is the subscription ID.
-					__( 'Successfully cancelled subscription #%s in PayPal.', 'invoicing' ),
-					$subscription->get_id()
-				)
-			);
-		}
-
-	}
 
     /**
 	 * Processes ipns and marks payments as complete.
@@ -641,40 +537,6 @@ class GetPaid_Paypal_Gateway extends GetPaid_Payment_Gateway {
             'desc'  => __( 'The email address of your sandbox PayPal account.', 'invoicing' ),
 			'std'   => wpinv_get_option( 'paypal_email', '' ),
         );
-
-		// Client ID and secret.
-		$admin_settings['paypal_client_id'] = array(
-			'type'  => 'text',
-			'class' => 'live-auth-data',
-			'id'    => 'paypal_client_id',
-			'name'  => __( 'Live Client ID', 'invoicing' ),
-			'desc'  => __( 'The client ID of your PayPal account. You can retrieve this from your PayPal developer account.', 'invoicing' ),
-		);
-
-		$admin_settings['paypal_sandbox_client_id'] = array(
-			'type'  => 'text',
-			'class' => 'sandbox-auth-data',
-			'id'    => 'paypal_sandbox_client_id',
-			'name'  => __( 'Sandbox Client ID', 'invoicing' ),
-			'desc'  => __( 'The client ID of your sandbox PayPal account. You can retrieve this from your PayPal developer account.', 'invoicing' ),
-			'std'   => wpinv_get_option( 'paypal_client_id', '' ),
-		);
-
-		$admin_settings['paypal_secret'] = array(
-			'type'  => 'text',
-			'class' => 'live-auth-data',
-			'id'    => 'paypal_secret',
-			'name'  => __( 'Live Secret', 'invoicing' ),
-			'desc'  => __( 'The secret of your PayPal account. You can retrieve this from your PayPal developer account.', 'invoicing' ),
-		);
-
-		$admin_settings['paypal_sandbox_secret'] = array(
-			'type'  => 'text',
-			'class' => 'sandbox-auth-data',
-			'id'    => 'paypal_sandbox_secret',
-			'name'  => __( 'Sandbox Secret', 'invoicing' ),
-			'desc'  => __( 'The secret of your sandbox PayPal account. You can retrieve this from your PayPal developer account.', 'invoicing' ),
-		);
 
         $admin_settings['paypal_ipn_url'] = array(
             'type'     => 'ipn_url',
@@ -861,8 +723,8 @@ class GetPaid_Paypal_Gateway extends GetPaid_Payment_Gateway {
 					set_transient( 'getpaid_paypal_access_token', sanitize_text_field( urldecode( $data['access_token'] ) ), (int) $data['expires_in'] );
 					getpaid_admin()->show_success( __( 'Successfully connected your PayPal account', 'invoicing' ) );
 				}
-			}
-		}
+}
+}
 
 		$redirect = empty( $data['redirect'] ) ? admin_url( 'admin.php?page=wpinv-settings&tab=gateways&section=paypal' ) : urldecode( $data['redirect'] );
 

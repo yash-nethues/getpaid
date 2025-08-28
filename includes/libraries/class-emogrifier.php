@@ -338,26 +338,16 @@ class Emogrifier {
 		$this->copyCssWithMediaToStyleNode($cssParts, $xmlDocument);
 
 		if ($this->preserveEncoding) {
-			// Deprecated since PHP 8.2
-			if ( version_compare( PHP_VERSION, '8.2', '<' ) && function_exists( 'mb_convert_encoding' ) ) {
+			if ( function_exists( 'mb_convert_encoding' ) ) {
 				return mb_convert_encoding( $xmlDocument->saveHTML(), self::ENCODING, 'HTML-ENTITIES' );
 			} else {
-				return mb_encode_numericentity( $xmlDocument->saveHTML(), [0x80, 0x10FFFF, 0, ~0], self::ENCODING );
-				//return htmlspecialchars_decode( utf8_encode( html_entity_decode( $xmlDocument->saveHTML(), ENT_COMPAT, self::ENCODING ) ) );
+				return htmlspecialchars_decode( utf8_encode( html_entity_decode( $xmlDocument->saveHTML(), ENT_COMPAT, self::ENCODING ) ) );
 			}
 		} else {
 			return $xmlDocument->saveHTML();
 		}
 	}
 
-    /**
-     * String to lower.
-     *
-     * @since 2.0.0
-     *
-     * @param array $m
-     * @return string
-     */
 	public function strtolower(array $m) {
 		return strtolower($m[0]);
 	}
@@ -496,13 +486,6 @@ class Emogrifier {
 		return array('css' => $css, 'media' => self::$_media);
 	}
 
-    /**
-     * Media concat.
-     *
-     * @since 2.0.0
-     *
-     * @param array $matches Matches result array.
-     */
 	private function _media_concat( $matches ) {
 		self::$_media .= $matches[0];
 	}
@@ -518,8 +501,7 @@ class Emogrifier {
 		$xmlDocument->strictErrorChecking = false;
 		$xmlDocument->formatOutput = true;
 		$libXmlState = libxml_use_internal_errors(true);
-		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-		/** @scrutinizer ignore-unhandled */ @$xmlDocument->loadHTML($this->getUnifiedHtml());
+		$xmlDocument->loadHTML($this->getUnifiedHtml());
 		libxml_clear_errors();
 		libxml_use_internal_errors($libXmlState);
 		$xmlDocument->normalizeDocument();
@@ -542,12 +524,10 @@ class Emogrifier {
 			$bodyWithoutUnprocessableTags = $this->html;
 		}
 
-		// Deprecated since PHP 8.2
-		if ( version_compare( PHP_VERSION, '8.2', '<' ) && function_exists( 'mb_convert_encoding' ) ) {
+		if ( function_exists( 'mb_convert_encoding' ) ) {
 			return mb_convert_encoding( $bodyWithoutUnprocessableTags, 'HTML-ENTITIES', self::ENCODING );
 		} else {
-			return mb_encode_numericentity( $bodyWithoutUnprocessableTags, [0x80, 0x10FFFF, 0, ~0], self::ENCODING );
-			//return htmlspecialchars_decode( utf8_decode( htmlentities( $bodyWithoutUnprocessableTags, ENT_COMPAT, self::ENCODING, false ) ) );
+			return htmlspecialchars_decode( utf8_decode( htmlentities( $bodyWithoutUnprocessableTags, ENT_COMPAT, self::ENCODING, false ) ) );
 		}
 	}
 

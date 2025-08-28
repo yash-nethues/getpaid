@@ -62,10 +62,6 @@ abstract class WPInv_Abstract_Privacy {
             $content = $this->get_privacy_message();
 
             if ( $content ) {
-                if ( empty( $this->name ) ) {
-                    $this->name = __( 'GetPaid', 'invoicing' );
-                }
-
                 wp_add_privacy_policy_content( $this->name, $this->get_privacy_message() );
             }
         }

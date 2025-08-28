@@ -9,37 +9,31 @@
      */
     function aui_init_greedy_nav(){
         jQuery('nav.greedy').each(function(i, obj) {
+
             // Check if already initialized, if so continue.
             if(jQuery(this).hasClass("being-greedy")){return true;}
 
             // Make sure its always expanded
             jQuery(this).addClass('navbar-expand');
-            jQuery(this).off('shown.bs.tab').on('shown.bs.tab', function (e) {
-                if (jQuery(e.target).closest('.dropdown-menu').hasClass('greedy-links')) {
-                    jQuery(e.target).closest('.greedy').find('.greedy-btn.dropdown').attr('aria-expanded', 'false');
-                    jQuery(e.target).closest('.greedy-links').removeClass('show').addClass('d-none');
-                }
-            });
-            jQuery(document).off('mousemove', '.greedy-btn').on('mousemove', '.greedy-btn', function(e){
-                jQuery('.dropdown-menu.greedy-links').removeClass('d-none');
-            });
+
             // vars
             var $vlinks = '';
             var $dDownClass = '';
-            var ddItemClass = 'greedy-nav-item';
             if(jQuery(this).find('.navbar-nav').length){
                 if(jQuery(this).find('.navbar-nav').hasClass("being-greedy")){return true;}
                 $vlinks = jQuery(this).find('.navbar-nav').addClass("being-greedy w-100").removeClass('overflow-hidden');
             }else if(jQuery(this).find('.nav').length){
                 if(jQuery(this).find('.nav').hasClass("being-greedy")){return true;}
                 $vlinks = jQuery(this).find('.nav').addClass("being-greedy w-100").removeClass('overflow-hidden');
-                $dDownClass = ' mt-0 p-0 zi-5 ';
-                ddItemClass += ' mt-0 me-0';
+                $dDownClass = ' mt-2 ';
             }else{
                 return false;
             }
 
-            jQuery($vlinks).append('<li class="nav-item list-unstyled ml-auto greedy-btn d-none dropdown"><button data-bs-toggle="collapse" class="nav-link greedy-nav-link" role="button"><i class="fas fa-ellipsis-h"></i> <span class="greedy-count badge bg-dark rounded-pill"></span></button><ul class="greedy-links dropdown-menu dropdown-menu-end '+$dDownClass+'"></ul></li>');
+            jQuery($vlinks).append('<li class="nav-item list-unstyled ml-auto greedy-btn d-none dropdown ">' +
+                '<a href="javascript:void(0)" data-toggle="dropdown" class="nav-link"><i class="fas fa-ellipsis-h"></i> <span class="greedy-count badge badge-dark badge-pill"></span></a>' +
+                '<ul class="greedy-links dropdown-menu  dropdown-menu-right '+$dDownClass+'"></ul>' +
+                '</li>');
 
             var $hlinks = jQuery(this).find('.greedy-links');
             var $btn = jQuery(this).find('.greedy-btn');
@@ -62,6 +56,7 @@
 			 The check function.
 			 */
             function check() {
+
                 // Get instant state
                 buttonSpace = $btn.width();
                 availableSpace = $vlinks.width() - 10;
@@ -70,15 +65,7 @@
 
                 // There is not enough space
                 if (numOfVisibleItems > 1 && requiredSpace > availableSpace) {
-                    var $li = $vlinks.children().last().prev();
-                    $li.removeClass('nav-item').addClass(ddItemClass);
-                    if (!jQuery($hlinks).children().length) {
-                        $li.find('.nav-link').addClass('w-100 dropdown-item rounded-0 rounded-bottom');
-                    } else {
-                        jQuery($hlinks).find('.nav-link').removeClass('rounded-top');
-                        $li.find('.nav-link').addClass('w-100 dropdown-item rounded-0 rounded-top');
-                    }
-                    $li.prependTo($hlinks);
+                    $vlinks.children().last().prev().prependTo($hlinks);
                     numOfVisibleItems -= 1;
                     check();
                     // There is more than enough space
@@ -105,7 +92,7 @@
     }
 
     function aui_select2_locale() {
-        var aui_select2_params = <?php echo self::select2_locale(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>;
+        var aui_select2_params = <?php echo self::select2_locale(); ?>;
 
         return {
             theme: "bootstrap-5",
@@ -156,6 +143,7 @@
         var select2_args = jQuery.extend({}, aui_select2_locale());
         jQuery("select.aui-select2").each(function() {
             if (!jQuery(this).hasClass("select2-hidden-accessible")) {
+                console.log(select2_args);
                 jQuery(this).select2(select2_args);
             }
         });
@@ -167,7 +155,7 @@
      * @param selector string The .class selector
      */
     function aui_time_ago(selector) {
-        var aui_timeago_params = <?php echo self::timeago_locale(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>;
+        var aui_timeago_params = <?php echo self::timeago_locale(); ?>;
 
         var templates = {
             prefix: aui_timeago_params.prefix_ago,
@@ -260,7 +248,7 @@
     function aui_init_flatpickr(){
         if ( typeof jQuery.fn.flatpickr === "function" && !$aui_doing_init_flatpickr) {
             $aui_doing_init_flatpickr = true;
-			<?php if ( ! empty( $flatpickr_locale ) ) { ?>try{flatpickr.localize(<?php echo $flatpickr_locale; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>);}catch(err){console.log(err.message);}<?php } ?>
+			<?php if ( ! empty( $flatpickr_locale ) ) { ?>try{flatpickr.localize(<?php echo $flatpickr_locale; ?>);}catch(err){console.log(err.message);}<?php } ?>
             jQuery('input[data-aui-init="flatpickr"]:not(.flatpickr-input)').flatpickr();
         }
         $aui_doing_init_flatpickr = false;
@@ -280,48 +268,39 @@
 
     function aui_modal_iframe($title,$url,$footer,$dismissible,$class,$dialog_class,$body_class,responsive){
         if(!$body_class){$body_class = 'p-0';}
-        var wClass = 'text-center position-absolute w-100 text-dark overlay overlay-white p-0 m-0 d-flex justify-content-center align-items-center';
-        var wStyle = '';
-        var sStyle = '';
+        var wClass = 'text-center position-absolute w-100 text-dark overlay overlay-white p-0 m-0 d-none d-flex justify-content-center align-items-center';
         var $body = "", sClass = "w-100 p-0 m-0";
         if (responsive) {
-            $body += '<div class="embed-responsive embed-responsive-16by9 ratio ratio-16x9">';
+            $body += '<div class="embed-responsive embed-responsive-16by9">';
             wClass += ' h-100';
             sClass += ' embed-responsive-item';
         } else {
             wClass += ' vh-100';
             sClass += ' vh-100';
-            wStyle += ' height: 90vh !important;';
-            sStyle += ' height: 90vh !important;';
         }
-        $body += '<div class="ac-preview-loading ' + wClass + '" style="left:0;top:0;' + wStyle + '"><div class="spinner-border" role="status"></div></div>';
-        $body += '<iframe id="embedModal-iframe" class="' + sClass + '" style="' + sStyle + '" src="" width="100%" height="100%" frameborder="0" allowtransparency="true"></iframe>';
+        $body += '<div class="ac-preview-loading ' + wClass + '" style="left:0;top:0"><div class="spinner-border" role="status"></div></div>';
+        $body += '<iframe id="embedModal-iframe" class="' + sClass + '" src="" width="100%" height="100%" frameborder="0" allowtransparency="true"></iframe>';
         if (responsive) {
             $body += '</div>';
         }
+
         $m = aui_modal($title,$body,$footer,$dismissible,$class,$dialog_class,$body_class);
-
-        // myModalEl.addEventListener('hidden.bs.modal', event => {
-        //     jQuery(".aui-carousel-modal iframe").attr('src', '');
-        // });
-
-        const auiModal = document.getElementById('aui-modal');
-        auiModal.addEventListener( 'shown.bs.modal', function ( e ) {
+        jQuery( $m ).on( 'shown.bs.modal', function ( e ) {
             iFrame = jQuery( '#embedModal-iframe') ;
 
-            jQuery('.ac-preview-loading').removeClass('d-none').addClass('d-flex');
-
+            jQuery('.ac-preview-loading').addClass('d-flex');
             iFrame.attr({
                 src: $url
             });
 
             //resize the iframe once loaded.
             iFrame.load(function() {
-                jQuery('.ac-preview-loading').removeClass('d-flex').addClass('d-none');
+                jQuery('.ac-preview-loading').removeClass('d-flex');
             });
         });
 
         return $m;
+
     }
 
     function aui_modal($title,$body,$footer,$dismissible,$class,$dialog_class,$body_class) {
@@ -349,6 +328,7 @@
 
             if ($dismissible) {
                 $modal += '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">' +
+                    '<span aria-hidden="true">&times;</span>' +
                     '</button>';
             }
 
@@ -483,14 +463,14 @@
                 if(index == 0 || Number.isInteger(index/$md_count) ){
                     $row_cols_class = $md_cols_count ? ' g-lg-4 g-3 row-cols-1 row-cols-lg-' + $md_cols_count  : '';
                     $active = index == 0 ? 'active' : '';
-                    $new_items += '<div class="carousel-item '+$active+'"><div class="row' + $row_cols_class + ' ">'; // mb to account for shadows (removed mb-3 as it was causing padding issues
+                    $new_items += '<div class="carousel-item '+$active+'"><div class="row' + $row_cols_class + ' mb-3">'; //mb to account for shadows
                     $closed = false;
                     $new_items_count++;
                     $new_item_count = 0;
                 }
 
                 // content
-                $new_items += '<div class="col ">'+$items[index]+'</div>';
+                $new_items += '<div class="col pr-1 pl-0">'+$items[index]+'</div>';
                 $new_item_count++;
 
 
@@ -502,7 +482,7 @@
                 if($md_count-$new_item_count > 0){
                     $placeholder_count = $md_count-$new_item_count;
                     while($placeholder_count > 0){
-                        $new_items += '<div class="col "></div>';
+                        $new_items += '<div class="col pr-1 pl-0"></div>';
                         $placeholder_count--;
                     }
 
@@ -603,7 +583,7 @@
         // remove it first
         jQuery('.aui-carousel-modal').remove();
 
-        var $modal = '<div class="modal fade aui-carousel-modal bsui" id="aui-carousel-modal" tabindex="-1" role="dialog" aria-labelledby="aui-modal-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-xl mw-100"><div class="modal-content bg-transparent border-0 shadow-none"><div class="modal-header"><h5 class="modal-title" id="aui-modal-title"></h5></div><div class="modal-body text-center"><i class="fas fa-circle-notch fa-spin fa-3x"></i></div></div></div></div>';
+        var $modal = '<div class="modal fade aui-carousel-modal bsui" id="aui-carousel-modal" tabindex="-1" role="dialog" aria-labelledby="aui-modal-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-xl mw-100"><div class="modal-content bg-transparent border-0"><div class="modal-header"><h5 class="modal-title" id="aui-modal-title"></h5></div><div class="modal-body text-center"><i class="fas fa-circle-notch fa-spin fa-3x"></i></div></div></div></div>';
         jQuery('body').append($modal);
 
         const ayeModal = new bootstrap.Modal('.aui-carousel-modal', {});
@@ -613,26 +593,11 @@
             jQuery(".aui-carousel-modal iframe").attr('src', '');
         });
 
-        jQuery('.aui-carousel-modal').on('shown.bs.modal', function(e) {
-            jQuery('.aui-carousel-modal .carousel-item.active').find('iframe').each(function() {
-                var $iframe = jQuery(this);
-                $iframe.parent().find('.ac-preview-loading').removeClass('d-none').addClass('d-flex');
-                if (!$iframe.attr('src') && $iframe.data('src')) {
-                    $iframe.attr('src', $iframe.data('src'));
-                }
-                $iframe.on('load', function() {
-                    setTimeout(function() {
-                        $iframe.parent().find('.ac-preview-loading').removeClass('d-flex').addClass('d-none');
-                    }, 1250);
-                });
-            });
-        });
-
         $container = jQuery($link).closest('.aui-gallery');
 
         $clicked_href = jQuery($link).attr('href');
         $images = [];
-        $container.find('.aui-lightbox-image, .aui-lightbox-iframe').each(function() {
+        $container.find('.aui-lightbox-image').each(function() {
             var a = this;
             var href = jQuery(a).attr('href');
             if (href) {
@@ -647,7 +612,7 @@
             if($images.length > 1){
                 $i = 0;
                 $carousel  += '<ol class="carousel-indicators position-fixed">';
-                $container.find('.aui-lightbox-image, .aui-lightbox-iframe').each(function() {
+                $container.find('.aui-lightbox-image').each(function() {
                     $active = $clicked_href == jQuery(this).attr('href') ? 'active' : '';
                     $carousel  += '<li data-bs-target="#aui-embed-slider-modal" data-bs-slide-to="'+$i+'" class="'+$active+'"></li>';
                     $i++;
@@ -660,68 +625,40 @@
 
             // items
             $i = 0;
-            $rtl_class = '<?php echo is_rtl() ? 'justify-content-end' : 'justify-content-start'; ?>'; 
-            $carousel += '<div class="carousel-inner d-flex align-items-center ' + $rtl_class + '">';
+            $carousel  += '<div class="carousel-inner">';
             $container.find('.aui-lightbox-image').each(function() {
                 var a = this;
                 var href = jQuery(a).attr('href');
 
                 $active = $clicked_href == jQuery(this).attr('href') ? 'active' : '';
-                $carousel += '<div class="carousel-item '+ $active+'"><div>';
+                $carousel  += '<div class="carousel-item '+ $active+'"><div>';
+
 
                 // image
                 var css_height = window.innerWidth > window.innerHeight ? '90vh' : 'auto';
-                var srcset = jQuery(a).find('img').attr('srcset');
-                var sizes = '';
-                if (srcset) {
-                    var sources = srcset.split(',')
-                        .map(s => {
-                            var parts = s.trim().split(' ');
-                            return {
-                                width: parseInt(parts[1].replace('w', '')),
-                                descriptor: parts[1].replace('w', 'px')  // Ensuring the descriptor is in pixels
-                            };
-                        })
-                        .sort((a, b) => b.width - a.width); // Sort from largest to smallest for proper descending order
-
-                    // Build the sizes string
-                    sizes = sources.map((source, index, array) => {
-                        // For the largest source, do not include max-width to serve as default for larger viewports
-                        if (index === 0) {
-                            return `${source.descriptor}`; // Using full descriptor for the largest image
-                        } else {
-                            // For other sources, specify max-width for one pixel less than the current width
-                            return `(max-width: ${source.width - 1}px) ${array[index - 1].descriptor}`;
-                        }
-                    }).reverse().join(', '); // Reverse to start from smallest to largest for logical order
-
-                }
-
-
-                var img = href ? jQuery(a).find('img').clone().attr('src', href ).attr('sizes', sizes ).removeClass().addClass('mx-auto d-block w-auto rounded').css({'max-height':css_height,'max-width':'98%'}).get(0).outerHTML :  jQuery(a).find('img').clone().removeClass().addClass('mx-auto d-block w-auto rounded').css({'max-height':css_height,'max-width':'98%'}).get(0).outerHTML;
-                $carousel += img;
+                var img = href ? jQuery(a).find('img').clone().attr('src', href ).attr('sizes', '' ).removeClass().addClass('mx-auto d-block w-auto mw-100 rounded').css('max-height',css_height).get(0).outerHTML :  jQuery(a).find('img').clone().removeClass().addClass('mx-auto d-block w-auto mw-100 rounded').css('max-height',css_height).get(0).outerHTML;;
+                $carousel  += img;
                 // captions
                 if(jQuery(a).parent().find('.carousel-caption').length ){
-                    $carousel += jQuery(a).parent().find('.carousel-caption').clone().removeClass('sr-only visually-hidden').get(0).outerHTML;
+                    $carousel  += jQuery(a).parent().find('.carousel-caption').clone().removeClass('sr-only').get(0).outerHTML;
                 }else if(jQuery(a).parent().find('.figure-caption').length ){
-                    $carousel += jQuery(a).parent().find('.figure-caption').clone().removeClass('sr-only visually-hidden').addClass('carousel-caption').get(0).outerHTML;
+                    $carousel  += jQuery(a).parent().find('.figure-caption').clone().removeClass('sr-only').addClass('carousel-caption').get(0).outerHTML;
                 }
-                $carousel += '</div></div>';
+                $carousel  += '</div></div>';
                 $i++;
-            });
 
+            });
             $container.find('.aui-lightbox-iframe').each(function() {
                 var a = this;
-                var css_height = window.innerWidth > window.innerHeight ? '90vh;' : 'auto;';
-                var styleWidth = $images.length > 1 ? 'max-width:70%;' : '';
 
                 $active = $clicked_href == jQuery(this).attr('href') ? 'active' : '';
-                $carousel += '<div class="carousel-item '+ $active+'"><div class="modal-xl mx-auto ratio ratio-16x9" style="max-height:'+css_height+styleWidth+'">';
+                $carousel  += '<div class="carousel-item '+ $active+'"><div class="modal-xl mx-auto embed-responsive embed-responsive-16by9">';
+
 
                 // iframe
+                var css_height = window.innerWidth > window.innerHeight ? '95vh' : 'auto';
                 var url = jQuery(a).attr('href');
-                var iframe = '<div class="ac-preview-loading text-light d-none" style="left:0;top:0;height:'+css_height +'"><div class="spinner-border m-auto" role="status"></div></div>';
-                iframe += '<iframe class="aui-carousel-iframe" style="height:'+css_height +'" src="" data-src="'+url+'?rel=0&amp;showinfo=0&amp;modestbranding=1&amp;autoplay=1" allow="autoplay"></iframe>';
+                var iframe = '<iframe class="embed-responsive-item" style="height:'+css_height +'" src="'+url+'?rel=0&amp;showinfo=0&amp;modestbranding=1&amp;autoplay=1" id="video" allow="autoplay"></iframe>';
                 var img = iframe ;//.css('height',css_height).get(0).outerHTML;
                 $carousel  += img;
 
@@ -741,25 +678,20 @@
                 $carousel += '</a>';
             }
 
+
             $carousel  += '</div>';
 
-            var $close = '<button type="button" class="btn-close btn-close-white text-end position-fixed" style="right: 20px;top: 10px; z-index: 1055;" data-bs-dismiss="modal" aria-label="Close"></button>';
+            var $close = '<button type="button" class="btn-close btn-close-white text-right position-fixed" style="right: 20px;top: 10px; z-index: 1055;" data-bs-dismiss="modal" aria-label="Close"></button>';
 
             jQuery('.aui-carousel-modal .modal-content').html($carousel).prepend($close);
 
             // ayeModal.getOrCreateInstance();
             ayeModal.show();
 
-            /* Support carousel swipe in BS modal on touch device */
-            try {
-                if ('ontouchstart' in document.documentElement || navigator.maxTouchPoints > 0) {
-                    let _bsC = new bootstrap.Carousel('#aui-embed-slider-modal');
-                }
-            } catch(err) {}
-
             // enable ajax load
             //gd_init_carousel_ajax();
         }
+
     }
 
     /**
@@ -824,22 +756,22 @@
             $op = "opacity:.92;";
             $tClass = 'alert bg-success w-auto';
             $thClass = 'bg-transparent border-0 text-white';
-            $icon = "<div class='h5 m-0 p-0'><i class='fas fa-check-circle me-2'></i></div>";
+            $icon = "<div class='h5 m-0 p-0'><i class='fas fa-check-circle mr-2 me-2'></i></div>";
         } else if ($type == 'error' || $type == 'danger') {
             $op = "opacity:.92;";
             $tClass = 'alert bg-danger  w-auto';
             $thClass = 'bg-transparent border-0 text-white';
-            $icon = "<div class='h5 m-0 p-0'><i class='far fa-times-circle me-2'></i></div>";
+            $icon = "<div class='h5 m-0 p-0'><i class='far fa-times-circle mr-2 me-2'></i></div>";
         } else if ($type == 'info') {
             $op = "opacity:.92;";
             $tClass = 'alert bg-info  w-auto';
             $thClass = 'bg-transparent border-0 text-white';
-            $icon = "<div class='h5 m-0 p-0'><i class='fas fa-info-circle me-2'></i></div>";
+            $icon = "<div class='h5 m-0 p-0'><i class='fas fa-info-circle mr-2 me-2'></i></div>";
         } else if ($type == 'warning') {
             $op = "opacity:.92;";
             $tClass = 'alert bg-warning  w-auto';
             $thClass = 'bg-transparent border-0 text-dark';
-            $icon = "<div class='h5 m-0 p-0'><i class='fas fa-exclamation-triangle me-2'></i></div>";
+            $icon = "<div class='h5 m-0 p-0'><i class='fas fa-exclamation-triangle mr-2 me-2'></i></div>";
         }
 
 
@@ -852,9 +784,9 @@
         if($type || $title || $title_small){
             $toast += '<div class="toast-header '+$thClass+'">';
             if($icon ){$toast += $icon;}
-            if($title){$toast += '<strong class="me-auto">'+$title+'</strong>';}
+            if($title){$toast += '<strong class="mr-auto me-auto">'+$title+'</strong>';}
             if($title_small){$toast += '<small>'+$title_small+'</small>';}
-            if($can_close){$toast += '<button type="button" class="ms-2 mb-1 btn-close" data-bs-dismiss="toast" aria-label="Close"></button>';}
+            if($can_close){$toast += '<button type="button" class="ml-2 ms-2 mb-1 close" data-bs-dismiss="toast" aria-label="Close"><span aria-hidden="true">×</span></button>';}
             $toast += '</div>';
         }
 
@@ -981,30 +913,6 @@
                 window.scrollTo(0, pS);
             });
         }
-
-		$(document).on('slide.bs.carousel', function(el) {
-			var $_modal = $(el.relatedTarget).closest('.aui-carousel-modal:visible').length ? $(el.relatedTarget).closest('.aui-carousel-modal:visible') : '';
-			if ($_modal && $_modal.find('.carousel-item iframe.aui-carousel-iframe').length) {
-				/* Unset iframe src */
-				$_modal.find('.carousel-item.active iframe.aui-carousel-iframe').each(function(){
-					if ($(this).attr('src')) {
-						$(this).data('src', $(this).attr('src'));
-						$(this).attr('src', '');
-					}
-				});
-				/* Set iframe src */
-				if ($(el.relatedTarget).find('iframe.aui-carousel-iframe').length) {
-					$(el.relatedTarget).find('.ac-preview-loading').removeClass('d-none').addClass('d-flex');
-					var $cIframe = $(el.relatedTarget).find('iframe.aui-carousel-iframe');
-					if (! $cIframe.attr('src') && $cIframe.data('src')) {
-						$cIframe.attr('src', $cIframe.data('src'));
-					}
-					$cIframe.on('load', function(){
-						setTimeout(function(){$_modal.find('.ac-preview-loading').removeClass('d-flex').addClass('d-none');},1250);
-					});
-				}
-			}
-		});
     });
 
     /**
@@ -1057,11 +965,11 @@
                 cs_scroll  = 'navbar-light';
             }
 
-            navbar.dataset.cso = cs_original;
-            navbar.dataset.css = cs_scroll;
+            navbar.dataset.cso = cs_original
+            navbar.dataset.css = cs_scroll
         }
 
-        if($value > 0 || navbar.classList.contains('nav-menu-open') ){
+        if($value > 0 ){
             navbar.classList.remove(cs_original);
             navbar.classList.add(cs_scroll);
         }else{
@@ -1091,7 +999,7 @@
 
 	<?php
 	// FSE tweaks.
-	if(!empty($_REQUEST['postType']) || !empty($_REQUEST['canvas']) ){ ?>
+	if(!empty($_REQUEST['postType']) && $_REQUEST['postType']=='wp_template'){ ?>
     function aui_fse_set_data_scroll() {
         console.log('init scroll');
         let Iframe = document.getElementsByClassName("edit-site-visual-editor__editor-canvas");
@@ -1138,7 +1046,6 @@
      * @param $color
      */
     function aui_fse_sync_site_colors($color){
-
         const getColorHex = () => {
             const element = jQuery(".edit-site-visual-editor__editor-canvas").contents().find(".editor-styles-wrapper").get(0);
             const style = element == null ? '' : window.getComputedStyle(element).getPropertyValue('--wp--preset--color--'+$color);
@@ -1147,7 +1054,6 @@
 
         // set the initial ColorHex
         let colorHex = getColorHex();
-
 
         wp.data.subscribe(() => {
 
@@ -1161,182 +1067,15 @@
 
             // update the newColorHex variable.
             colorHex = newColorHex;
-
-        });
-    }
-
-    /**
-     * update colors as the style colour pallet is changed
-     * @param $color
-     */
-    function aui_fse_sync_site_typography(){
-        const getGlobalStyles = () => {
-            const { select } = wp.data;
-            const settings = select('core/block-editor').getSettings();
-
-            return ( settings && settings.styles && settings.styles[3].css ? settings.styles[3].css : null );
-        };
-
-        // set the initial styles
-        let Styles = getGlobalStyles();
-
-        wp.data.subscribe(() => {
-            // get the current styles
-            const newStyles = getGlobalStyles();
-
-            // only do something if newStyles has changed.
-            if( newStyles && Styles !== newStyles ) {
-                // heading sizes
-                aui_updateCssRule('body.editor-styles-wrapper h1', 'font-size', aui_parseCSS(newStyles, 'h1', 'font-size'));
-                aui_updateCssRule('body.editor-styles-wrapper h2', 'font-size', aui_parseCSS(newStyles, 'h2', 'font-size'));
-                aui_updateCssRule('body.editor-styles-wrapper h3', 'font-size', aui_parseCSS(newStyles, 'h3', 'font-size'));
-                aui_updateCssRule('body.editor-styles-wrapper h4', 'font-size', aui_parseCSS(newStyles, 'h4', 'font-size'));
-                aui_updateCssRule('body.editor-styles-wrapper h5', 'font-size', aui_parseCSS(newStyles, 'h5', 'font-size'));
-                aui_updateCssRule('body.editor-styles-wrapper h6', 'font-size', aui_parseCSS(newStyles, 'h6', 'font-size'));
-
-                // ALl Headings
-               aui_updateCssRule('body.editor-styles-wrapper h1, body.editor-styles-wrapper h2, body.editor-styles-wrapper h3, body.editor-styles-wrapper h4, body.editor-styles-wrapper h5, body.editor-styles-wrapper h6', 'font-family', aui_parseCSS(newStyles, 'h1, h2, h3, h4, h5, h6', 'font-family'));
-
-                // individual headings
-                aui_updateCssRule('body.editor-styles-wrapper h1', 'font-family', aui_parseCSS(newStyles, 'h1{', 'font-family'));
-                aui_updateCssRule('body.editor-styles-wrapper h2', 'font-family', aui_parseCSS(newStyles, 'h2{', 'font-family'));
-                aui_updateCssRule('body.editor-styles-wrapper h3', 'font-family', aui_parseCSS(newStyles, 'h3{', 'font-family'));
-                aui_updateCssRule('body.editor-styles-wrapper h4', 'font-family', aui_parseCSS(newStyles, 'h4{', 'font-family'));
-                aui_updateCssRule('body.editor-styles-wrapper h5', 'font-family', aui_parseCSS(newStyles, 'h5{', 'font-family'));
-                aui_updateCssRule('body.editor-styles-wrapper h6', 'font-family', aui_parseCSS(newStyles, 'h6{', 'font-family'));
-
-                // console.log(aui_parseCSS(newStyles, 'h2{', 'font-family'));
-
-                // color
-                aui_updateCssRule('body.editor-styles-wrapper h1, body.editor-styles-wrapper h2, body.editor-styles-wrapper h3, body.editor-styles-wrapper h4, body.editor-styles-wrapper h5, body.editor-styles-wrapper h6', 'color', aui_parseCSS(newStyles, 'h1, h2, h3, h4, h5, h6', 'color'));
-
-                aui_updateCssRule('body.editor-styles-wrapper h1', 'color', aui_parseCSS(newStyles, 'h1{', 'color'));
-                aui_updateCssRule('body.editor-styles-wrapper h2', 'color', aui_parseCSS(newStyles, 'h2{', 'color'));
-                aui_updateCssRule('body.editor-styles-wrapper h3', 'color', aui_parseCSS(newStyles, 'h3{', 'color'));
-                aui_updateCssRule('body.editor-styles-wrapper h4', 'color', aui_parseCSS(newStyles, 'h4{', 'color'));
-                aui_updateCssRule('body.editor-styles-wrapper h5', 'color', aui_parseCSS(newStyles, 'h5{', 'color'));
-                aui_updateCssRule('body.editor-styles-wrapper h6', 'color', aui_parseCSS(newStyles, 'h6{', 'color'));
-
-
-
-                //background
-                aui_updateCssRule('body.editor-styles-wrapper h1, body.editor-styles-wrapper h2, body.editor-styles-wrapper h3, body.editor-styles-wrapper h4, body.editor-styles-wrapper h5, body.editor-styles-wrapper h6', 'background', aui_parseCSS(newStyles, 'h1, h2, h3, h4, h5, h6', 'background'));
-
-                aui_updateCssRule('body.editor-styles-wrapper h1', 'background', aui_parseCSS(newStyles, 'h1{', 'background'));
-                aui_updateCssRule('body.editor-styles-wrapper h2', 'background', aui_parseCSS(newStyles, 'h2{', 'background'));
-                aui_updateCssRule('body.editor-styles-wrapper h3', 'background', aui_parseCSS(newStyles, 'h3{', 'background'));
-                aui_updateCssRule('body.editor-styles-wrapper h4', 'background', aui_parseCSS(newStyles, 'h4{', 'background'));
-                aui_updateCssRule('body.editor-styles-wrapper h5', 'background', aui_parseCSS(newStyles, 'h5{', 'background'));
-                aui_updateCssRule('body.editor-styles-wrapper h6', 'background', aui_parseCSS(newStyles, 'h6{', 'background'));
-
-
-
-                //                console.log('Font size of h2 is:', fontSize);
-            }
-
-            // update the newStyles variable.
-            Styles = newStyles;
-
-
         });
     }
 
     setTimeout(function(){
-        aui_sync_admin_styles();
-    }, 10000);
-
-    function aui_sync_admin_styles(){
         aui_fse_sync_site_colors('primary');
         aui_fse_sync_site_colors('danger');
         aui_fse_sync_site_colors('warning');
         aui_fse_sync_site_colors('info');
-        aui_fse_sync_site_typography();
-    }
-
-    // setTimeout(function(){
-    //     aui_listen_global_style_click();
-    // }, 3000);
-    //
-    // function aui_listen_global_style_click(){
-    //     setTimeout(function(){
-    //         // check for global stylebook clicks
-    //         jQuery('.interface-pinned-items button').click(function() {
-    //             aui_listen_stylebook_click();
-    //         });
-    //     }, 500);
-    // }
-    //
-    //
-    //
-    // function aui_listen_stylebook_click(){
-    //     setTimeout(function(){
-    //         // check for global stylebook clicks
-    //         jQuery('.edit-site-global-styles-sidebar__header .components-button.has-icon').click(function() {
-    //             setTimeout(function(){
-    //                 aui_sync_admin_styles();
-    //             }, 500);
-    //         });
-    //     }, 500);
-    // }
-
-
-
-
-    function aui_parseCSS(cssString, selector, property) {
-        // Split the CSS string on closing braces
-        const rules = cssString.split('}');
-
-        // Search for the selector and property
-        for (let rule of rules) {
-            if (rule.includes(selector) && rule.includes(property)) {
-                // Extract the rule's content
-                const ruleContent = rule.split('{')[1];
-
-                // Split properties and search for the desired property
-                const properties = ruleContent.split(';');
-                for (let prop of properties) {
-                    if (prop.includes(property)) {
-                        // Extract and return the property value
-                        return prop.split(':')[1].trim();
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    // Function to update a CSS rule
-    function aui_updateCssRule(selector, property, value) {
-        // check fi we are viewing stylebook
-
-        var aui_inline_css = jQuery(".edit-site-visual-editor__editor-canvas").contents().find("#ayecode-ui-fse-inline-css").get(0);
-        var aui_inline_css_stylebook = jQuery(".edit-site-style-book__iframe").contents().find("#ayecode-ui-fse-inline-css").get(0);
-
-        if (aui_inline_css && aui_inline_css.sheet) {
-            var styleSheet = aui_inline_css.sheet;
-        }else if(aui_inline_css_stylebook && aui_inline_css_stylebook.sheet){
-            var styleSheet = aui_inline_css_stylebook.sheet;
-        }else{
-            return;
-        }
-
-        var rules = styleSheet.cssRules || styleSheet.rules;
-
-        // console.log(rules);
-
-        for (var i = 0; i < rules.length; i++) {
-            if (rules[i].selectorText === selector) {
-                rules[i].style[property] = value;
-                // console.log('update rule');
-                return; // Exit the function once the rule is found and updated
-            }
-        }
-
-        // If the rule doesn't exist, optionally add it
-        styleSheet.insertRule(`${selector} { ${property}: ${value}; }`, rules.length);
-        // console.log(`insert rule ${selector}`);
-    }
+    }, 10000);
 
 	<?php } ?>
 

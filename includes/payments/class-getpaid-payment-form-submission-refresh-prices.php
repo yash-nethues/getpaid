@@ -244,10 +244,14 @@ class GetPaid_Payment_Form_Submission_Refresh_Prices {
 		$taxes  = array();
 		$markup = '';
         foreach ( $submission->get_taxes() as $name => $data ) {
-			$name           = sanitize_text_field( $name );
-			$amount         = $submission->format_amount( $data['initial_tax'] );
-			$taxes[ $name ] = $amount;
-			$markup        .= "<small class='form-text'>$name : $amount</small>";
+			$name          = sanitize_text_field( $name );
+			$amount        = $submission->format_amount( $data['initial_tax'] );
+			$taxes[ $name ]  = $amount;
+			$markup       .= "<small class='form-text'>$name : $amount</small>";
+		}
+
+		if ( wpinv_display_individual_tax_rates() && ! empty( $taxes ) ) {
+			$this->response['texts']['.getpaid-form-cart-totals-total-tax'] = $markup;
 		}
 
 		$this->response = array_merge(

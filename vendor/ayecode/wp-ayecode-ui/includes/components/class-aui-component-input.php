@@ -113,7 +113,7 @@ class AUI_Component_Input {
 				$args['class'] .= ' custom-file-input ';
 			} elseif ( $type == 'checkbox' ) {
 				$label_after = true; // if type file we need the label after
-				$args['class'] .= $aui_bs5 ? ' form-check-input c-pointer ' : ' custom-control-input c-pointer ';
+				$args['class'] .= $aui_bs5 ? ' form-check-input' : ' custom-control-input ';
 			} elseif ( $type == 'datepicker' || $type == 'timepicker' ) {
 				$orig_type = $type;
 				$type = 'text';
@@ -123,10 +123,9 @@ class AUI_Component_Input {
 				$args['extra_attributes']['data-aui-init'] = 'flatpickr';
 
 				// Disable native datetime inputs.
-				$disable_mobile_attr = isset( $args['extra_attributes']['data-disable-mobile'] ) ? $args['extra_attributes']['data-disable-mobile'] : 'true';
-				$disable_mobile_attr = apply_filters( 'aui_flatpickr_disable_disable_mobile_attr', $disable_mobile_attr, $args );
-
-				$args['extra_attributes']['data-disable-mobile'] = $disable_mobile_attr;
+				if ( ( $orig_type == 'timepicker' || ! empty( $args['extra_attributes']['data-enable-time'] ) ) && ! isset( $args['extra_attributes']['data-disable-mobile'] ) ) {
+					$args['extra_attributes']['data-disable-mobile'] = 'true';
+				}
 
 				// set a way to clear field if empty
 				if ( $args['input_group_right'] === '' && $args['clear_icon'] !== false ) {
@@ -137,18 +136,17 @@ class AUI_Component_Input {
 				// enqueue the script
 				$aui_settings = AyeCode_UI_Settings::instance();
 				$aui_settings->enqueue_flatpickr();
-			} else if ( $type == 'iconpicker' ) {
+			} elseif ( $type == 'iconpicker' ) {
 				$type = 'text';
-
-				// Validate FA icon.
-				$args['value'] = AUI_Component_Helper::sanitize_fa_icon( $args['value'], $args );
+				//$args['class'] .= ' aui-flatpickr bg-initial ';
+//				$args['class'] .= ' bg-initial ';
 
 				$args['extra_attributes']['data-aui-init'] = 'iconpicker';
 				$args['extra_attributes']['data-placement'] = 'bottomRight';
 
 				$args['input_group_right'] = '<span class="input-group-addon input-group-text c-pointer"></span>';
-
-				// Enqueue the script
+//				$args['input_group_right_inside'] = true;
+				// enqueue the script
 				$aui_settings = AyeCode_UI_Settings::instance();
 				$aui_settings->enqueue_iconpicker();
 			}
@@ -200,7 +198,7 @@ class AUI_Component_Input {
 
 			// validation text
 			if ( ! empty( $args['validation_text'] ) ) {
-				$output .= ' oninvalid="setCustomValidity(\'' . esc_attr( addslashes( $args['validation_text'] ) ) . '\')" ';
+				$output .= ' oninvalid="setCustomValidity(\'' . esc_attr( $args['validation_text'] ) . '\')" ';
 				$output .= ' onchange="try{setCustomValidity(\'\')}catch(e){}" ';
 			}
 
@@ -232,7 +230,7 @@ class AUI_Component_Input {
 			}
 
 			// close
-			$output .= '>';
+			$output .= ' >';
 
 			// help text
 			if ( ! empty( $args['help_text'] ) ) {
@@ -379,7 +377,7 @@ else{$eli.attr(\'type\',\'password\');}"
 
 	public static function label( $args = array(), $type = '' ) {
 		global $aui_bs5;
-
+		//<label for="exampleInputEmail1">Email address</label>
 		$defaults = array(
 			'title'      => 'div',
 			'for'        => '',
@@ -395,36 +393,36 @@ else{$eli.attr(\'type\',\'password\');}"
 		$output = '';
 
 		if ( $args['title'] ) {
+
 			// maybe hide labels //@todo set a global option for visibility class
 			if ( $type == 'file' || $type == 'checkbox' || $type == 'radio' || ! empty( $args['label_type'] ) ) {
 				$class = $args['class'];
 			} else {
-				$class = 'sr-only ' . ( $aui_bs5 ? 'visually-hidden ' : '' ) . $args['class'];
+				$class = 'sr-only ' . $args['class'];
 			}
 
 			// maybe horizontal
 			if ( $args['label_type'] == 'horizontal' && $type != 'checkbox' ) {
-				$class .= ' ' . AUI_Component_Helper::get_column_class( $args['label_col'], 'label' ) . ' col-form-label ' . $type;
+				$class .= ' ' . AUI_Component_Helper::get_column_class( $args['label_col'], 'label' ) . ' col-form-label '.$type;
 			}
 
-			if ( $aui_bs5 ) {
-				$class .= ' form-label';
-			}
+			if( $aui_bs5 ){ $class .= ' form-label'; }
 
 			// open
-			$output .= '<label';
+			$output .= '<label ';
 
 			// for
 			if ( ! empty( $args['for'] ) ) {
-				$output .= ' for="' . esc_attr( $args['for'] ) . '"';
+				$output .= ' for="' . esc_attr( $args['for'] ) . '" ';
 			}
 
 			// class
 			$class = $class ? AUI_Component_Helper::esc_classes( $class ) : '';
-			$output .= $class != "" ? ' class="' . $class . '"' : '';
+			$output .= ' class="' . $class . '" ';
 
 			// close
 			$output .= '>';
+
 
 			// title, don't escape fully as can contain html
 			if ( ! empty( $args['title'] ) ) {
@@ -433,7 +431,10 @@ else{$eli.attr(\'type\',\'password\');}"
 
 			// close wrap
 			$output .= '</label>';
+
+
 		}
+
 
 		return $output;
 	}
@@ -491,7 +492,7 @@ else{$eli.attr(\'type\',\'password\');}"
 			}
 
 			// close wrap
-			$output .= '>';
+			$output .= ' >';
 
 
 			// Input group left
@@ -658,7 +659,7 @@ else{$eli.attr(\'type\',\'password\');}"
 
 			// validation text
 			if ( ! empty( $args['validation_text'] ) ) {
-				$output .= ' oninvalid="setCustomValidity(\'' . esc_attr( addslashes( $args['validation_text'] ) ) . '\')" ';
+				$output .= ' oninvalid="setCustomValidity(\'' . esc_attr( $args['validation_text'] ) . '\')" ';
 				$output .= ' onchange="try{setCustomValidity(\'\')}catch(e){}" ';
 			}
 
@@ -688,7 +689,7 @@ else{$eli.attr(\'type\',\'password\');}"
 			}
 
 			// close tag
-			$output .= '>';
+			$output .= ' >';
 
 			// value
 			if ( ! empty( $args['value'] ) ) {
@@ -785,8 +786,7 @@ else{$eli.attr(\'type\',\'password\');}"
 	 * @return string The rendered component.
 	 */
 	public static function select( $args = array() ) {
-		global $aui_bs5, $aui_has_select2, $aui_select2_enqueued;
-
+		global $aui_bs5;
 		$defaults = array(
 			'class'            => '',
 			'wrap_class'       => '',
@@ -851,19 +851,6 @@ else{$eli.attr(\'type\',\'password\');}"
 			$is_select2 = true;
 		} elseif ( strpos( $args['class'], 'aui-select2' ) !== false ) {
 			$is_select2 = true;
-		}
-
-		if ( $is_select2 && ! $aui_has_select2 ) {
-			$aui_has_select2 = true;
-			$conditional_select2 = apply_filters( 'aui_is_conditional_select2', true );
-
-			// Enqueue the script,
-			if ( empty( $aui_select2_enqueued ) && $conditional_select2 === true ) {
-				$aui_select2_enqueued = true;
-
-				$aui_settings = AyeCode_UI_Settings::instance();
-				$aui_settings->enqueue_select2();
-			}
 		}
 
 		// select2 tags
@@ -931,16 +918,16 @@ else{$eli.attr(\'type\',\'password\');}"
 
 		// required
 		if ( ! empty( $args['required'] ) ) {
-			$output .= ' required';
+			$output .= ' required ';
 		}
 
 		// multiple
 		if ( ! empty( $args['multiple'] ) ) {
-			$output .= ' multiple';
+			$output .= ' multiple ';
 		}
 
 		// close opening tag
-		$output .= '>';
+		$output .= ' >';
 
 		// placeholder
 		if ( isset( $args['placeholder'] ) && '' != $args['placeholder'] && ! $is_select2 ) {
@@ -1135,15 +1122,8 @@ else{$eli.attr(\'type\',\'password\');}"
 			'label_col'  => $args['label_col']
 		);
 
-		if ( $args['label_type'] == 'top' || $args['label_type'] == 'hidden' ) {
-			$label_args['class'] .= 'd-block ';
-
-			if ( $args['label_type'] == 'hidden' ) {
-				$label_args['class'] .= 'sr-only ' . ( $aui_bs5 ? 'visually-hidden ' : '' );
-			}
-		}
-
 		$output = '';
+
 
 		// label before
 		if ( ! empty( $args['label'] ) ) {
@@ -1266,11 +1246,11 @@ else{$eli.attr(\'type\',\'password\');}"
 
 		// required
 		if ( ! empty( $args['required'] ) ) {
-			$output .= ' required';
+			$output .= ' required ';
 		}
 
 		// close opening tag
-		$output .= '>';
+		$output .= ' >';
 
 		// label
 		if ( ! empty( $args['label'] ) && is_array( $args['label'] ) ) {
