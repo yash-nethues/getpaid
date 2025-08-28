@@ -21,32 +21,44 @@ class SD_Hello_World extends WP_Super_Duper {
 			'block-keywords' => "['hello','world']",
 			// used in the block search, MAX 3
 			'block-output'   => array( // the block visual output elements as an array
+//				array(
+//					'element' => 'p',
+//					'title'   => __( 'Placeholder', 'ayecode-connect' ),
+//					'class'   => '[%className%]',
+//					'content' => 'Hello: [%after_text%]' // block properties can be added by wrapping them in [%name%]
+//				)
 				array(
-					'element' => 'p',
-					'title'   => __( 'Placeholder', 'hello-world' ),
-					'class'   => '[%className%]',
+					'element'       => 'BlocksProps',
+					'inner_element' => 'p',
+					'blockProps'    => array(
+						'className'               => '[%WrapClass%]',
+//						'content' => 'Hello: [%after_text%]'
+//						'if_dangerouslySetInnerHTML' => '{__html: blockstrap_build_shape(props.attributes) }',
+					),
 					'content' => 'Hello: [%after_text%]' // block properties can be added by wrapping them in [%name%]
-				)
+
+
+				),
 			),
 			'block-wrap'    => '', // You can specify the type of element to wrap the block `div` or `span` etc.. Or blank for no wrap at all.
 			'class_name'     => __CLASS__,
 			// The calling class name
 			'base_id'        => 'hello_world',
 			// this is used as the widget id and the shortcode id.
-			'name'           => __( 'Hello World', 'hello-world' ),
+			'name'           => __( 'Hello World', 'ayecode-connect' ),
 			// the name of the widget/block
 			'widget_ops'     => array(
 				'classname'   => 'hello-world-class',
 				// widget class
-				'description' => esc_html__( 'This is an example that will take a text parameter and output it after `Hello:`.', 'hello-world' ),
+				'description' => esc_html__( 'This is an example that will take a text parameter and output it after `Hello:`.', 'ayecode-connect' ),
 				// widget description
 			),
 			'no_wrap'       => true, // This will prevent the widget being wrapped in the containing widget class div.
 			'arguments'      => array( // these are the arguments that will be used in the widget, shortcode and block settings.
 				'after_text' => array( // this is the input name=''
-					'title'       => __( 'Text after hello:', 'hello-world' ),
+					'title'       => __( 'Text after hello:', 'ayecode-connect' ),
 					// input title
-					'desc'        => __( 'This is the text that will appear after `Hello:`.', 'hello-world' ),
+					'desc'        => __( 'This is the text that will appear after `Hello:`.', 'ayecode-connect' ),
 					// input description
 					'type'        => 'text',
 					// the type of input, test, select, checkbox etc.
@@ -90,7 +102,7 @@ class SD_Hello_World extends WP_Super_Duper {
 			$another_input = '';
 		}
 
-		return "Hello: " . $after_text . "" . $another_input;
+		return "Helllo: " . $after_text . "" . $another_input;
 
 	}
 
@@ -116,8 +128,8 @@ function _my_extra_arguments( $options ) {
 	 */
 	$options['arguments']['another_input'] = array(
 		'name'        => 'another_input', // this is the input name=''
-		'title'       => __( 'Another input:', 'hello-world' ), // input title
-		'desc'        => __( 'This is an input added via filter.', 'hello-world' ), // input description
+		'title'       => __( 'Another input:', 'ayecode-connect' ), // input title
+		'desc'        => __( 'This is an input added via filter.', 'ayecode-connect' ), // input description
 		'type'        => 'text', // the type of input, test, select, checkbox etc.
 		'placeholder' => 'Placeholder text', // the input placeholder text.
 		'desc_tip'    => true, // if the input should show the widget description text as a tooltip.

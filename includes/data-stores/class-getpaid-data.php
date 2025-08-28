@@ -849,9 +849,7 @@ abstract class GetPaid_Data {
 	 */
 	protected function get_prop( $prop, $context = 'view' ) {
 		$value = null;
-//                if($prop == 'items'){
-//print_r($this->data); echo $context."////////";
-//                echo $this->get_hook_prefix() . $prop;}
+
 		if ( array_key_exists( $prop, $this->data ) ) {
 			$value = array_key_exists( $prop, $this->changes ) ? $this->changes[ $prop ] : $this->data[ $prop ];
 

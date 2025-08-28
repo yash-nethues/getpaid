@@ -64,6 +64,7 @@ class GetPaid_Admin {
 		add_action( 'getpaid_authenticated_admin_action_duplicate_form', array( $this, 'duplicate_payment_form' ) );
 		add_action( 'getpaid_authenticated_admin_action_reset_form_stats', array( $this, 'reset_form_stats' ) );
 		add_action( 'getpaid_authenticated_admin_action_duplicate_invoice', array( $this, 'duplicate_invoice' ) );
+		add_action( 'getpaid_authenticated_admin_action_refund_invoice', array( $this, 'refund_invoice' ) );
 		add_action( 'getpaid_authenticated_admin_action_send_invoice', array( $this, 'send_customer_invoice' ) );
 		add_action( 'getpaid_authenticated_admin_action_send_invoice_reminder', array( $this, 'send_customer_payment_reminder' ) );
         add_action( 'getpaid_authenticated_admin_action_reset_tax_rates', array( $this, 'admin_reset_tax_rates' ) );
@@ -283,8 +284,7 @@ class GetPaid_Admin {
 		wp_enqueue_script( 'sortable', WPINV_PLUGIN_URL . 'assets/js/sortable.min.js', array(), WPINV_VERSION );
 		wp_enqueue_script( 'vue_draggable', WPINV_PLUGIN_URL . 'assets/js/vue/vuedraggable.min.js', array( 'sortable', 'vue' ), WPINV_VERSION );
 
-		$version = filemtime( WPINV_PLUGIN_DIR . 'assets/js/admin-payment-forms.js' );
-		wp_register_script( 'wpinv-admin-payment-form-script', WPINV_PLUGIN_URL . 'assets/js/admin-payment-forms.js', array( 'wpinv-admin-script', 'vue_draggable', 'wp-hooks' ), $version );
+		wp_register_script( 'wpinv-admin-payment-form-script', WPINV_PLUGIN_URL . 'assets/js/admin-payment-forms.min.js', array( 'wpinv-admin-script', 'vue_draggable', 'wp-hooks' ), WPINV_VERSION );
 
 		wp_localize_script(
             'wpinv-admin-payment-form-script',
@@ -397,12 +397,11 @@ class GetPaid_Admin {
      * Fires an admin action after verifying that a user can fire them.
      */
     public function maybe_do_admin_action() {
-
-        if ( wpinv_current_user_can_manage_invoicing() && isset( $_REQUEST['getpaid-admin-action'] ) && isset( $_REQUEST['getpaid-nonce'] ) && wp_verify_nonce( $_REQUEST['getpaid-nonce'], 'getpaid-nonce' ) ) {
+        if ( isset( $_REQUEST['getpaid-admin-action'] ) && isset( $_REQUEST['getpaid-nonce'] ) && wp_verify_nonce( $_REQUEST['getpaid-nonce'], 'getpaid-nonce' ) && wpinv_current_user_can( sanitize_text_field( $_REQUEST['getpaid-admin-action'] ), $_REQUEST ) ) {
             $key = sanitize_key( $_REQUEST['getpaid-admin-action'] );
+
             do_action( "getpaid_authenticated_admin_action_$key", $_REQUEST );
         }
-
     }
 
 	/**
@@ -444,6 +443,61 @@ class GetPaid_Admin {
 
 		getpaid_admin()->show_error( __( 'There was an error duplicating this invoice. Please try again.', 'invoicing' ) );
 
+	}
+
+	/**
+     * Refund an invoice.
+	 *
+	 * @param array $args
+     */
+    public function refund_invoice( $args ) {
+
+		if ( empty( $args['invoice_id'] ) ) {
+			return;
+		}
+
+		$invoice = new WPInv_Invoice( (int) $args['invoice_id'] );
+
+		if ( ! $invoice->exists() || $invoice->is_refunded() ) {
+			return;
+		}
+
+		$invoice->refund();
+
+		// Refund remotely.
+		if ( getpaid_payment_gateway_supports( $invoice->get_gateway(), 'refunds' ) && ! empty( $args['getpaid_refund_remote'] ) ) {
+			do_action( 'getpaid_refund_invoice_remotely', $invoice );
+		}
+
+		// Cancel subscriptions.
+		if ( ! empty( $args['getpaid_cancel_subscription'] ) ) {
+			$subscriptions = getpaid_get_invoice_subscriptions( $invoice );
+
+			if ( ! empty( $subscriptions ) ) {
+				if ( ! is_array( $subscriptions ) ) {
+					$subscriptions = array( $subscriptions );
+				}
+
+				foreach ( $subscriptions as $subscription ) {
+					$subscription->cancel();
+					$invoice->add_system_note(
+						sprintf(
+							// translators: %s: subscription ID.
+							__( 'Subscription #%s cancelled', 'invoicing' ),
+							$subscription->get_id()
+						)
+					);
+				}
+			}
+		}
+
+		// Add notice.
+		$this->show_success( __( 'Invoice refunded successfully.', 'invoicing' ) );
+
+		// Redirect.
+		wp_safe_redirect(
+			remove_query_arg( array( 'getpaid-admin-action', 'getpaid-nonce', 'invoice_id', 'getpaid_cancel_subscription', 'getpaid_refund_remote' ) )
+		);
 	}
 
 	/**
@@ -575,38 +629,18 @@ class GetPaid_Admin {
 	}
 
 	/**
-     * Creates an missing admin tables.
+     * Creates missing admin tables.
 	 *
      */
     public function admin_create_missing_tables() {
 		global $wpdb;
-		$installer = new GetPaid_Installer();
 
-		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$wpdb->prefix}wpinv_subscriptions'" ) != $wpdb->prefix . 'wpinv_subscriptions' ) {
-			$installer->create_subscriptions_table();
+		GetPaid_Installer::create_db_tables();
+		GetPaid_Installer::migrate_old_customers();
 
-			if ( $wpdb->last_error !== '' ) {
-				$this->show_error( __( 'Your GetPaid tables have been updated:', 'invoicing' ) . ' ' . $wpdb->last_error );
-			}
-		}
-
-		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$wpdb->prefix}getpaid_invoices'" ) != $wpdb->prefix . 'getpaid_invoices' ) {
-			$installer->create_invoices_table();
-
-			if ( '' !== $wpdb->last_error ) {
-				$this->show_error( __( 'Your GetPaid tables have been updated:', 'invoicing' ) . ' ' . $wpdb->last_error );
-			}
-		}
-
-		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$wpdb->prefix}getpaid_invoice_items'" ) != $wpdb->prefix . 'getpaid_invoice_items' ) {
-			$installer->create_invoice_items_table();
-
-			if ( '' !== $wpdb->last_error ) {
-				$this->show_error( __( 'Your GetPaid tables have been updated:', 'invoicing' ) . ' ' . $wpdb->last_error );
-			}
-		}
-
-		if ( ! $this->has_notices() ) {
+		if ( '' !== $wpdb->last_error ) {
+			$this->show_error( __( 'Your GetPaid tables have been updated:', 'invoicing' ) . ' ' . $wpdb->last_error );
+		} else {
 			$this->show_success( __( 'Your GetPaid tables have been updated.', 'invoicing' ) );
 		}
 
@@ -638,7 +672,6 @@ class GetPaid_Admin {
 	 *
      */
     public function admin_download_customers() {
-		global $wpdb;
 
 		$output = fopen( 'php://output', 'w' );
 
@@ -649,63 +682,20 @@ class GetPaid_Admin {
 		header( 'Content-Type:text/csv' );
 		header( 'Content-Disposition:attachment;filename=customers.csv' );
 
-		$post_types = '';
-
-		foreach ( array_keys( getpaid_get_invoice_post_types() ) as $post_type ) {
-			$post_types .= $wpdb->prepare( 'post_type=%s OR ', $post_type );
-		}
-
-		$post_types = rtrim( $post_types, ' OR' );
-
-		$customers = $wpdb->get_col( "SELECT DISTINCT( post_author ) FROM $wpdb->posts WHERE $post_types" );
-
-		$columns = array(
-			'name'       => __( 'Name', 'invoicing' ),
-			'email'      => __( 'Email', 'invoicing' ),
-			'country'    => __( 'Country', 'invoicing' ),
-			'state'      => __( 'State', 'invoicing' ),
-			'city'       => __( 'City', 'invoicing' ),
-			'zip'        => __( 'ZIP', 'invoicing' ),
-			'address'    => __( 'Address', 'invoicing' ),
-			'phone'      => __( 'Phone', 'invoicing' ),
-			'company'    => __( 'Company', 'invoicing' ),
-			'company_id' => __( 'Company ID', 'invoicing' ),
-			'invoices'   => __( 'Invoices', 'invoicing' ),
-			'total_raw'  => __( 'Total Spend', 'invoicing' ),
-			'signup'     => __( 'Date created', 'invoicing' ),
-		);
+		/** @var GetPaid_Customer[] $customers */
+		$customers = getpaid_get_customers( array( 'number' => -1 ) );
+		$columns   = array_keys( GetPaid_Customer_Data_Store::get_database_fields() );
 
 		// Output the csv column headers.
-		fputcsv( $output, array_values( $columns ) );
+		fputcsv( $output, $columns );
 
 		// Loop through
-		$table = new WPInv_Customers_Table();
-		foreach ( $customers as $customer_id ) {
+		foreach ( $customers as $customer ) {
 
-			$user = get_user_by( 'id', $customer_id );
 			$row  = array();
-			if ( empty( $user ) ) {
-				continue;
-			}
 
-			foreach ( array_keys( $columns ) as $column ) {
-
-				$method = 'column_' . $column;
-
-				if ( 'name' == $column ) {
-					$value = esc_html( $user->display_name );
-				} elseif ( 'email' == $column ) {
-					$value = sanitize_email( $user->user_email );
-				} elseif ( is_callable( array( $table, $method ) ) ) {
-					$value = wp_strip_all_tags( $table->$method( $user ) );
-				}
-
-				if ( empty( $value ) ) {
-					$value = esc_html( get_user_meta( $user->ID, '_wpinv_' . $column, true ) );
-				}
-
-				$row[] = $value;
-
+			foreach ( $columns as $column ) {
+				$row[]  = (string) maybe_serialize( $customer->get( $column, 'edit' ) );
 			}
 
 			fputcsv( $output, $row );

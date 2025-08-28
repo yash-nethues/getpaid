@@ -51,7 +51,7 @@ function wpinv_user_can_view_invoice( $invoice ) {
     }
 
     // Always enable for admins..
-    if ( wpinv_current_user_can_manage_invoicing() || current_user_can( 'view_invoices', $invoice->get_id() ) ) { // Admin user
+    if ( wpinv_current_user_can( 'view_invoice', array( 'invoice' => $invoice ) ) || current_user_can( 'view_invoices', $invoice->get_id() ) ) { // Admin user
         return true;
     }
 
@@ -96,7 +96,7 @@ function getpaid_get_invoice_post_types() {
  * @param string $post_type The post type to check for.
  */
 function getpaid_is_invoice_post_type( $post_type ) {
-    return is_scalar( $post_type ) && ! empty( $post_type ) && array_key_exists( $post_type, getpaid_get_invoice_post_types() );
+	return is_scalar( $post_type ) && ! empty( $post_type ) && strpos( $post_type, 'wpi_' ) === 0 && array_key_exists( $post_type, getpaid_get_invoice_post_types() );
 }
 
 /**
@@ -919,7 +919,7 @@ function getpaid_invoice_item_columns( $invoice ) {
         if ( ! wpinv_item_quantities_enabled() || 'amount' == $invoice->get_template() ) {
             unset( $columns['quantity'] );
         }
-}
+    }
 
     // Price.
     if ( isset( $columns['price'] ) ) {
@@ -944,10 +944,10 @@ function getpaid_invoice_item_columns( $invoice ) {
     // Tax rates.
     if ( isset( $columns['tax_rate'] ) ) {
 
-        if ( 0 == $invoice->get_tax() ) {
+        if ( 0 == $invoice->get_total_tax() ) {
             unset( $columns['tax_rate'] );
         }
-}
+    }
 
     return $columns;
 }
@@ -987,6 +987,29 @@ function getpaid_invoice_totals_rows( $invoice ) {
 
     if ( ( $invoice->get_disable_taxes() || ! wpinv_use_taxes() ) && isset( $totals['tax'] ) ) {
         unset( $totals['tax'] );
+    }
+
+    // If we have taxes, display individual taxes.
+    if ( isset( $totals['tax'] ) && wpinv_display_individual_tax_rates() ) {
+
+        $new_totals = array();
+        foreach ( $totals as $key => $label ) {
+
+            if ( 'tax' !== $key ) {
+                $new_totals[ $key ] = $label;
+                continue;
+            }
+
+            $taxes = array_keys( $invoice->get_taxes() );
+            if ( ! empty( $taxes ) ) {
+
+                foreach ( $taxes as $tax ) {
+                    $new_totals[ 'tax__' . $tax ] = $tax;
+                }
+            }
+        }
+
+        $totals = $new_totals;
     }
 
     if ( 0 == $invoice->get_total_fees() && isset( $totals['fee'] ) ) {
@@ -1277,17 +1300,17 @@ function getpaid_get_invoice_status_classes() {
 	return apply_filters(
 		'getpaid_get_invoice_status_classes',
 		array(
-            'wpi-quote-declined' => 'badge-danger',
-            'wpi-failed'         => 'badge-danger',
-			'wpi-processing'     => 'badge-info',
-			'wpi-onhold'         => 'badge-warning',
-			'wpi-quote-accepted' => 'badge-success',
-			'publish'            => 'badge-success',
-			'wpi-renewal'        => 'badge-primary',
-            'wpi-cancelled'      => 'badge-secondary',
-            'wpi-pending'        => 'badge-dark',
-            'wpi-quote-pending'  => 'badge-dark',
-            'wpi-refunded'       => 'badge-secondary',
+            'wpi-quote-declined' => 'bg-danger',
+            'wpi-failed'         => 'bg-danger',
+			'wpi-processing'     => 'bg-info',
+			'wpi-onhold'         => 'bg-warning text-dark',
+			'wpi-quote-accepted' => 'bg-success',
+			'publish'            => 'bg-success',
+			'wpi-renewal'        => 'bg-primary',
+            'wpi-cancelled'      => 'bg-secondary',
+            'wpi-pending'        => 'bg-dark text-white',
+            'wpi-quote-pending'  => 'bg-dark text-white',
+            'wpi-refunded'       => 'bg-secondary',
 		)
 	);
 

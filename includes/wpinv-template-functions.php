@@ -417,6 +417,15 @@ function wpinv_item_dropdown( $args = array() ) {
         'orderby'        => 'title',
         'order'          => 'ASC',
         'posts_per_page' => $args['number'],
+
+        // Skip where _wpinv_one_time meta is yes.
+        'meta_query'     => array(
+            'relation' => 'OR',
+            array(
+                'key'     => '_wpinv_one_time',
+                'compare' => 'NOT EXISTS',
+            ),
+        ),
     );
 
     $item_args  = apply_filters( 'wpinv_item_dropdown_query_args', $item_args, $args, $defaults );
@@ -913,6 +922,11 @@ function wpinv_display_style() {
         do_action( 'wp_enqueue_scripts' );
     }
 
+    // Add global styles.
+    if ( wp_is_block_theme() ) {
+        wp_print_styles( 'global-styles' );
+    }
+
     // Register the invoices style.
     wp_register_style( 'wpinv-single-style', WPINV_PLUGIN_URL . 'assets/css/invoice.css', array(), filemtime( WPINV_PLUGIN_DIR . 'assets/css/invoice.css' ) );
 
@@ -990,7 +1004,7 @@ function wpinv_checkout_form() {
     $wpi_checkout_id = $invoice_id;
 
     // Retrieve appropriate payment form.
-    $payment_form = new GetPaid_Payment_Form( $invoice->get_meta( 'force_payment_form' ) );
+    $payment_form = new GetPaid_Payment_Form( wpinv_translate_post_id( $invoice->get_meta( 'force_payment_form' ) ) );
     $payment_form = $payment_form->exists() ? $payment_form : new GetPaid_Payment_Form( wpinv_get_default_payment_form() );
 
     if ( ! $payment_form->exists() ) {
@@ -1219,7 +1233,7 @@ function wpinv_oxygen_fix_conflict() {
 function getpaid_display_payment_form( $form ) {
 
     if ( is_numeric( $form ) ) {
-        $form = new GetPaid_Payment_Form( $form );
+        $form = new GetPaid_Payment_Form( wpinv_translate_post_id( $form ) );
     }
 
     $form->display();
@@ -1308,8 +1322,7 @@ function getpaid_convert_items_to_array( $items ) {
         }
 
         // WPML support.
-        $item_id              = apply_filters( 'wpml_object_id', $data[0], 'wpi_item', true );
-        $prepared[ $item_id ] = $quantity;
+        $prepared[ wpinv_translate_post_id( $data[0] ) ] = $quantity;
 
     }
 
@@ -1365,7 +1378,7 @@ function getpaid_the_invoice_description( $invoice ) {
         return;
     }
 
-    echo "<small class='getpaid-invoice-description text-dark p-2 form-text' style='margin-bottom: 20px; border-left: 2px solid #2196F3;'><em>" . wp_kses_post( wpautop( $description ) ) . "</em></small>";
+    echo "<small class='getpaid-invoice-description text-dark pl-2 ps-2 form-text' style='margin-bottom:20px;border-left:2px solid #2196F3;display:block;padding-left:.5rem'><em>" . wp_kses_post( wpautop( $description ) ) . "</em></small>";
 }
 add_action( 'getpaid_invoice_line_items', 'getpaid_the_invoice_description', 100 );
 add_action( 'wpinv_email_billing_details', 'getpaid_the_invoice_description', 100 );
@@ -1377,6 +1390,13 @@ add_action( 'wpinv_email_billing_details', 'getpaid_the_invoice_description', 10
  * @param GetPaid_Payment_Form $form
  */
 function getpaid_payment_form_element( $element, $form ) {
+    $translatable = array( 'text', 'label', 'input_label', 'button_label', 'description' );
+
+    foreach ( $translatable as $string ) {
+        if ( ! empty( $element[ $string ] ) && is_scalar( $element[ $string ] ) ) {
+            $element[ $string ] = __( $element[ $string ], 'invoicing' );
+        }
+    }
 
     // Set up the args.
     $element_type    = trim( $element['type'] );
@@ -1635,3 +1655,211 @@ function getpaid_filter_embed_template( $template ) {
     return $template;
 }
 add_filter( 'template_include', 'getpaid_filter_embed_template' );
+
+/**
+ * Get the payment forms custom fields.
+ *
+ * @since 2.8.23
+ *
+ * @return array Array of custom fields.
+ */
+function getpaid_get_payment_form_custom_fields() {
+	global $wpdb, $payment_form_meta_fields;
+
+	if ( ! empty( $payment_form_meta_fields ) ) {
+		return $payment_form_meta_fields;
+	}
+
+	$results = $wpdb->get_results( "SELECT `pm`.`meta_value` FROM `{$wpdb->postmeta}` AS pm LEFT JOIN `{$wpdb->posts}` AS p ON p.ID = pm.post_id WHERE `pm`.`meta_key` = 'wpinv_form_elements' AND `p`.`post_type` = 'wpi_payment_form'" );
+
+	$meta_fields = array();
+
+	if ( ! empty( $results ) ) {
+		foreach ( $results as $row ) {
+			$fields = maybe_unserialize( $row->meta_value );
+
+			if ( ! empty( $fields ) && is_array( $fields ) ) {
+				foreach ( $fields as $field ) {
+					$label = ! empty( $field['add_meta'] ) && ! empty( $field['label'] ) ? wpinv_clean( wp_unslash( $field['label'] ) ) : '';
+
+					if ( $label ) {
+						$field_key = '_' . str_replace( array( ' ', "'", '"', ',' ), array( '_', '', '', '_' ), getpaid_strtolower( $label ) );
+						$meta_fields[ $field_key ] = $label;
+					}
+				}
+			}
+		}
+	}
+
+	$payment_form_meta_fields = $meta_fields;
+
+	return $meta_fields;
+}
+
+/**
+ * Check if Gutenberg is in use.
+ *
+ * @since 2.8.31
+ *
+ * @return bool True if site uses Gutenberg else False.
+ */
+function getpaid_is_gutenberg() {
+	global $wp_version;
+
+	$is_gutenberg = true;
+
+	// If less than v5.
+	if ( version_compare( $wp_version, '5.0.0', '<' ) ) {
+		$is_gutenberg = false;
+	}
+
+	if ( class_exists( 'Classic_Editor' ) ) {
+		$is_gutenberg = false; // Classic Editor plugin is active.
+	} else if ( getpaid_is_classicpress() ) {
+		$is_gutenberg = false; // Site is using ClassicPress.
+	}
+
+	return $is_gutenberg;
+}
+
+/**
+ * Check if ClassicPress is in use.
+ *
+ * @since 2.8.31
+ *
+ * @return bool True if site uses ClassicPress else False.
+ */
+function getpaid_is_classicpress() {
+	if ( function_exists( 'classicpress_version' ) ) {
+		$is_classicpress = true;
+	} else {
+		$is_classicpress = false;
+	}
+
+	return $is_classicpress;
+}
+
+/**
+ * The default content for the checkout page.
+ *
+ * @since 2.8.31
+ *
+ * @param @bool $filtered True to apply hook. Default false.
+ * @param @bool $blocks True to use blocks.
+ * @return string Page content.
+ */
+ function getpaid_page_content_checkout( $filtered = false, $blocks = false ) {
+	if ( $blocks ) {
+		$content = "<!-- wp:invoicing/wpinv-checkout-widget {\"content\":\"\",\"sd_shortcode\":\"[wpinv_checkout title='' ]\"} -->
+<div class=\"wp-block-invoicing-wpinv-checkout-widget\"></div>
+<!-- /wp:invoicing/wpinv-checkout-widget -->";
+	} else {
+		$content = "[wpinv_checkout]";
+	}
+
+	if ( $filtered ) {
+		$content = apply_filters( 'getpaid_page_default_content_checkout', $content, $blocks );
+	}
+
+	return $content;
+}
+
+/**
+ * The default content for the invoice history page.
+ *
+ * @since 2.8.31
+ *
+ * @param @bool $filtered True to apply hook. Default false.
+ * @param @bool $blocks True to use blocks.
+ * @return string Page content.
+ */
+ function getpaid_page_content_invoice_history( $filtered = false, $blocks = false ) {
+	if ( $blocks ) {
+		$content = "<!-- wp:invoicing/wpinv-history-widget {\"content\":\"\",\"sd_shortcode\":\"[wpinv_history title='' ]\"} -->
+<div class=\"wp-block-invoicing-wpinv-history-widget\"></div>
+<!-- /wp:invoicing/wpinv-history-widget -->";
+	} else {
+		$content = "[wpinv_history]";
+	}
+
+	if ( $filtered ) {
+		$content = apply_filters( 'getpaid_page_default_content_invoice_history', $content, $blocks );
+	}
+
+	return $content;
+}
+
+/**
+ * The default content for the receipt page.
+ *
+ * @since 2.8.31
+ *
+ * @param @bool $filtered True to apply hook. Default false.
+ * @param @bool $blocks True to use blocks.
+ * @return string Page content.
+ */
+ function getpaid_page_content_receipt( $filtered = false, $blocks = false ) {
+	if ( $blocks ) {
+		$content = "<!-- wp:invoicing/wpinv-receipt-widget {\"content\":\"\",\"sd_shortcode\":\"[wpinv_receipt title='' ]\"} -->
+<div class=\"wp-block-invoicing-wpinv-receipt-widget\"></div>
+<!-- /wp:invoicing/wpinv-receipt-widget -->";
+	} else {
+		$content = "[wpinv_receipt]";
+	}
+
+	if ( $filtered ) {
+		$content = apply_filters( 'getpaid_page_default_content_receipt', $content, $blocks );
+	}
+
+	return $content;
+}
+
+/**
+ * The default content for the failed transaction page.
+ *
+ * @since 2.8.31
+ *
+ * @param @bool $filtered True to apply hook. Default false.
+ * @param @bool $blocks True to use blocks.
+ * @return string Page content.
+ */
+ function getpaid_page_content_failure( $filtered = false, $blocks = false ) {
+	if ( $blocks ) {
+		$content = "<!-- wp:html -->
+" . __( 'Your transaction failed, please try again or contact site support.', 'invoicing' ) . "
+<!-- /wp:html -->";
+	} else {
+		$content = __( 'Your transaction failed, please try again or contact site support.', 'invoicing' );
+	}
+
+	if ( $filtered ) {
+		$content = apply_filters( 'getpaid_page_default_content_failure', $content, $blocks );
+	}
+
+	return $content;
+}
+
+/**
+ * The default content for the subscriptions page.
+ *
+ * @since 2.8.31
+ *
+ * @param @bool $filtered True to apply hook. Default false.
+ * @param @bool $blocks True to use blocks.
+ * @return string Page content.
+ */
+ function getpaid_page_content_subscriptions( $filtered = false, $blocks = false ) {
+	if ( $blocks ) {
+		$content = "<!-- wp:invoicing/wpinv-subscriptions-widget {\"content\":\"\",\"sd_shortcode\":\"[wpinv_subscriptions title='' ]\"} -->
+<div class=\"wp-block-invoicing-wpinv-subscriptions-widget\"></div>
+<!-- /wp:invoicing/wpinv-subscriptions-widget -->";
+	} else {
+		$content = "[wpinv_subscriptions]";
+	}
+
+	if ( $filtered ) {
+		$content = apply_filters( 'getpaid_page_default_content_subscriptions', $content, $blocks );
+	}
+
+	return $content;
+}

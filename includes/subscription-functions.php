@@ -147,13 +147,13 @@ function getpaid_get_subscription_status_classes() {
 	return apply_filters(
 		'getpaid_get_subscription_status_classes',
 		array(
-			'pending'   => 'badge-dark',
-			'trialling' => 'badge-info',
-			'active'    => 'badge-success',
-			'failing'   => 'badge-warning',
-			'expired'   => 'badge-danger',
-			'completed' => 'badge-primary',
-			'cancelled' => 'badge-secondary',
+			'pending'   => 'bg-dark',
+			'trialling' => 'bg-info',
+			'active'    => 'bg-success',
+			'failing'   => 'bg-warning text-dark',
+			'expired'   => 'bg-danger',
+			'completed' => 'bg-primary',
+			'cancelled' => 'bg-secondary',
 		)
 	);
 
@@ -315,7 +315,7 @@ function getpaid_get_formatted_subscription_amount( $subscription ) {
 
 	if ( ! empty( $bill_times ) ) {
 		$bill_times = $subscription->get_frequency() * $bill_times;
-		$bill_times_less = getpaid_get_subscription_period_label( $subscription->get_frequency(), $bill_times - $subscription->get_frequency() );
+		$bill_times_less = getpaid_get_subscription_period_label( $subscription->get_period(), $bill_times - $subscription->get_frequency() );
 		$bill_times = getpaid_get_subscription_period_label( $subscription->get_period(), $bill_times );
 	}
 

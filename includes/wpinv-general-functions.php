@@ -373,8 +373,34 @@ function wpinv_get_default_payment_form() {
     }
 
     // WPML support.
-    $form = apply_filters( 'wpml_object_id', $form, 'wpi_payment_form', true );
-    return (int) $form;
+    return (int) wpinv_translate_post_id( $form );
+}
+
+/**
+ * Translates a post id.
+ *
+ * @param int $post_id
+ */
+function wpinv_translate_post_id( $post_id ) {
+
+    // Abort if no post id is given.
+    if ( empty( $post_id ) ) {
+        return $post_id;
+    }
+
+    // WPML.
+    $post_id = apply_filters( 'wpml_object_id', $post_id, 'wpi_payment_form', true );
+
+    // Polylang.
+    if ( function_exists( 'pll_get_post' ) ) {
+        $translated = pll_get_post( $post_id );
+
+        if ( ! empty( $translated ) ) {
+            $post_id = $translated;
+        }
+    }
+
+    return $post_id;
 }
 
 /**
@@ -444,7 +470,7 @@ function wpinv_alter_elementor_widget_config( $config ) {
                 $config['initial_document']['widgets'][ $key ]['icon'] = 'eicon-globe'; //@todo if no icons use on page then font-awesome is not loaded, wif we can fifure out how to force load we can use icons. <i class="fas fa-globe-americas"></i><i class="fa-solid fa-earth-americas"></i>
             }
         }
-    }
+    } 
 
     return $config;
 }

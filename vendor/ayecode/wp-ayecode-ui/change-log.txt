@@ -1,3 +1,150 @@
+= 0.2.40 - 2025-07-27 =
+* .sr-only with BS5 forces to display hidden label - FIXED
+* FontAwesome 7 compatibility changes - CHANGED
+
+= 0.2.39 - 2025-07-17 =
+* Added args in FA icon sanitization hook - CHANGED
+
+= 0.2.38 - 2025-07-03 =
+* Iframe in BootStrap modal don't load for single image - FIXED
+* Sanitize FontAwesome icon in iconpicker - FIXED
+
+= 0.2.37 - 2025-06-12 =
+* Prevent running a query on every page load when not required - CHANGED
+
+= 0.2.36 - 2025-05-01 =
+* WP 6.8 changed editor params and scroll page detector not working for fixed menu items color change - FIXED
+
+= 0.2.35 - 2025-04-10 =
+* Border width setting not working - FIXED
+
+= 0.2.34 - 2025-02-27 =
+* Greedy menu should auto close on tab select - CHANGED
+
+= 0.2.33 - 2025-02-20 =
+* Some hosts can show wp-content folder twice in asset URLs - FIXED
+
+= 0.2.32 - 2025-02-13 =
+* Astra theme woocommerce compatibility CSS breaks select2 in modals - FIXED
+
+= 0.2.31 - 2025-01-09 =
+* Changes to the get_url() function for getting asset URLs to better support docker containers - CHANGED
+
+= 0.2.30 - 2024-12-12 =
+* Minor JS fix for resetting value of field - FIXED
+
+= 0.2.29 - 2024-11-28 =
+* Load Select2 JavaScript only when required - CHANGED
+
+= 0.2.28 - 2024-11-12 =
+* iOS fixed images zoomed way in with background cover, changed to scroll for ios - CHANGED
+
+= 0.2.27 - 2024-11-06 =
+* Don't apply custom colors to standard wp-admin pages - CHANGED
+* Carousel in BootStrap modal not working on RTL - FIXED
+* Update FlatPickr JS library to v4.6.13 - CHANGED
+
+= 0.2.26 - 2024-09-12 =
+* Primary color setting not working after update - FIXED
+
+= 0.2.25 - 2024-09-05 =
+* Don't apply custom colors to wp-admin - CHANGED
+
+= 0.2.24 - 2024-08-29 =
+* Changes for search form conditional fields - CHANGED
+
+= 0.2.23 - 2024-08-08 =
+* Conditional field set default value changes - CHANGED
+
+= 0.2.22 - 2024-08-01 =
+* Conditional field don't reset field value on hide element - FIXED
+
+= 0.2.21 - 2024-07-31 =
+* JS error on FSE theme edit template part page - FIXED
+
+= 0.2.20 - 2024-07-05 =
+* Multiple carousels breaks carousel in modal - FIXED
+
+= 0.2.19 - 2024-07-04 =
+* Video in lightbox is not working - FIXED
+* Stop video playing in slideshow on move to next slide - FIXED
+
+= 0.2.18 - 2024-06-27 =
+* Pagination style conflict on Hello Elementor theme - FIXED
+
+= 0.2.17 - 2024-06-20 =
+* Carousel slide swipe in BS modal is not working on touch device - FIXED
+
+= 0.2.16 - 2024-06-13  =
+* Buttons after click when still have :focus can have wrong box-shadow if colour has been changed - FIXED
+
+= 0.2.15 - 2024-05-22  =
+* Checkbox not showing hand cursor on hover - FIXED
+
+= 0.2.14 - 2024-05-09  =
+* Label type top don't have margin to label - FIXED
+* Improvements for aui_lightbox_embed() function - CHANGED
+
+= 0.2.13 - 2024-05-02 =
+* BS4 lightbox displays blurred image - FIXED
+* Fix PHP notice in HEX to RGB conversion - FIXED
+* Outline buttons not using correct text color when user adjusted colors in block themes - FIXED
+
+= 0.2.12 - 2024-04-25 =
+* Enhance BS4 to BS5 class replacements - CHANGED
+
+= 0.2.11 - 2024-04-11 =
+* .link-* classes not respecting editor color change - FIXED
+
+= 0.2.10 - 2024-04-04 =
+* Safari wp-admin plupload overflow issue on hidden input causing horizontal scroll issue - FIXED
+
+= 0.2.9 - 2024-03-19 =
+* BS5 styles can call broken font awesome url from css - FIXED
+* Plugin check review - DONE
+
+= 0.2.8 - 2024-02-22 =
+* Gallery padding made slider images taller than single images - FIXED
+* aui_modal_iframe() function not loading iframe when bs5 selected - FIXED
+
+= 0.2.7 - 2024-01-25 =
+* Single quote breaks validation message - FIXED
+* WP Editor Styles can now style headings, links, typography - ADDED
+* Unused icons font file can load if old class used - FIXED
+
+= 0.2.5 - 2023-12-14 =
+* Update textdomain - CHANGED
+* Inline CSS breaks p element in block editor - FIXED
+
+= 0.2.4 =
+* Last ios fix broke standard image select from library - FIXED
+
+= 0.2.3 =
+* iOS add listing add images button not working - FIXED
+
+= 0.2.1 =
+* Manage native mobile datepicker for date or time input on mobile - CHANGED
+* plupload button on safari can overflow and block other page elements - FIXED
+
+= 0.2.0 =
+* color-scheme-flip-on-scroll feature should flip when mobile menu opened even if not scrolled - FIXED
+* Font awesome icon-picker searcher updated to latest 6.x - UPDATED
+* Icon picker will now show icons v5 or v6 depending on Font Awesome Settings - CHANGED
+
+= 0.1.98 =
+* Greedy tab links not showing properly in mobile device - FIXED
+
+= 0.1.97 =
+* BS5 removed mb-3 on slider as it was causing padding issues on GD when mixed Single and Slider archives - CHANGED
+* image cover classes are not vertically centering image - FIXED
+
+= 0.1.96 =
+* BS4 to BS5 font italic class is not working - FIXED
+* Custom pallet colors not showing in BS5 when selected as a color in block - FIXED
+
+= 0.1.94 =
+* Fix conditional field for multiselect field type in search bar - FIXED
+
 = 0.1.93 =
 * Rounded right not working in BS5 - FIXED
 * Firefox and Safari can have issues displaying images with the .ratio class - FIXED
@@ -69,7 +216,7 @@
 
 = 0.1.73 =
 * Conditional field multiselect field don't match for specific option - FIXED
-* Allow to run conditionl fields on custom event trigger - ADDED
+* Allow to run conditional fields on custom event trigger - ADDED
 
 = 0.1.72 =
 * Input now has "size" option: sm, small, lg, large - ADDED

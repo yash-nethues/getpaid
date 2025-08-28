@@ -121,13 +121,13 @@ class WPInv_Ajax {
     public static function add_note() {
         check_ajax_referer( 'add-invoice-note', '_nonce' );
 
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
-            die( -1 );
-        }
-
         $post_id   = absint( $_POST['post_id'] );
         $note      = wp_kses_post( trim( stripslashes( $_POST['note'] ) ) );
         $note_type = sanitize_text_field( $_POST['note_type'] );
+
+        if ( ! wpinv_current_user_can( 'invoice_add_note', array( 'invoice_id' => $post_id, 'note_type' => $note_type ) ) ) {
+            die( -1 );
+        }
 
         $is_customer_note = $note_type == 'customer' ? 1 : 0;
 
@@ -145,11 +145,11 @@ class WPInv_Ajax {
     public static function delete_note() {
         check_ajax_referer( 'delete-invoice-note', '_nonce' );
 
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
+        $note_id = (int)$_POST['note_id'];
+
+        if ( ! wpinv_current_user_can( 'invoice_delete_note', array( 'note_id' => $note_id ) ) ) {
             die( -1 );
         }
-
-        $note_id = (int)$_POST['note_id'];
 
         if ( $note_id > 0 ) {
             wp_delete_comment( $note_id, true );
@@ -168,19 +168,19 @@ class WPInv_Ajax {
      * Retrieves a given user's billing address.
      */
     public static function get_billing_details() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
 
-        // Can the user manage the plugin?
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
+        // Do we have a user id?
+        $user_id = (int) $_GET['user_id'];
+        $invoice_id = ! empty( $_REQUEST['post_id'] ) ? (int) $_REQUEST['post_id'] : 0;
+
+        if ( empty( $user_id ) || ! is_numeric( $user_id ) ) {
             die( -1 );
         }
 
-        // Do we have a user id?
-        $user_id = (int) $_GET['user_id'];
-
-        if ( empty( $user_id ) || ! is_numeric( $user_id ) ) {
+        // Can the user manage the plugin?
+        if ( ! wpinv_current_user_can( 'invoice_get_billing_details', array( 'user_id' => $user_id, 'invoice_id' => $invoice_id ) ) ) {
             die( -1 );
         }
 
@@ -205,12 +205,17 @@ class WPInv_Ajax {
      * Checks if a new users email is valid.
      */
     public static function check_new_user_email() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
 
+        $invoice_id = ! empty( $_REQUEST['post_id'] ) ? absint( $_REQUEST['post_id'] ) : 0;
+
+        if ( empty( $invoice_id ) ) {
+            die( -1 );
+        }
+
         // Can the user manage the plugin?
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
+        if ( ! wpinv_current_user_can( 'invoice_check_new_user_email', array( 'invoice_id' => $invoice_id ) ) ) {
             die( -1 );
         }
 
@@ -238,6 +243,7 @@ class WPInv_Ajax {
 
     public static function run_tool() {
         check_ajax_referer( 'wpinv-nonce', '_nonce' );
+
         if ( ! wpinv_current_user_can_manage_invoicing() ) {
             die( -1 );
         }
@@ -422,21 +428,22 @@ class WPInv_Ajax {
      * Recalculates invoice totals.
      */
     public static function recalculate_invoice_totals() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
 
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
-            exit;
+        $invoice_id = ! empty( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+
+        if ( empty( $invoice_id ) ) {
+            die( -1 );
         }
 
-        // We need an invoice.
-        if ( empty( $_POST['post_id'] ) ) {
-            exit;
+        // Can the user manage the plugin?
+        if ( ! wpinv_current_user_can( 'invoice_recalculate_totals', array( 'invoice_id' => $invoice_id ) ) ) {
+            die( -1 );
         }
 
         // Fetch the invoice.
-        $invoice = new WPInv_Invoice( intval( $_POST['post_id'] ) );
+        $invoice = new WPInv_Invoice( $invoice_id );
 
         // Ensure it exists.
         if ( ! $invoice->get_id() ) {
@@ -490,21 +497,22 @@ class WPInv_Ajax {
      * Get items belonging to a given invoice.
      */
     public static function get_invoice_items() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
 
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
+        $invoice_id = ! empty( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+
+        if ( empty( $invoice_id ) ) {
             exit;
         }
 
-        // We need an invoice and items.
-        if ( empty( $_POST['post_id'] ) ) {
+        // Can the user manage the plugin?
+        if ( ! wpinv_current_user_can( 'invoice_get_items', array( 'invoice_id' => $invoice_id ) ) ) {
             exit;
         }
 
         // Fetch the invoice.
-        $invoice = new WPInv_Invoice( intval( $_POST['post_id'] ) );
+        $invoice = new WPInv_Invoice( $invoice_id );
 
         // Ensure it exists.
         if ( ! $invoice->get_id() ) {
@@ -525,21 +533,27 @@ class WPInv_Ajax {
      * Edits an invoice item.
      */
     public static function edit_invoice_item() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
-
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
-            exit;
-        }
 
         // We need an invoice and item details.
         if ( empty( $_POST['post_id'] ) || empty( $_POST['data'] ) ) {
             exit;
         }
 
+        $invoice_id = absint( $_POST['post_id'] );
+
+        if ( empty( $invoice_id ) ) {
+            exit;
+        }
+
+        // Can the user manage the plugin?
+        if ( ! wpinv_current_user_can( 'invoice_edit_item', array( 'invoice_id' => $invoice_id ) ) ) {
+            exit;
+        }
+
         // Fetch the invoice.
-        $invoice = new WPInv_Invoice( intval( $_POST['post_id'] ) );
+        $invoice = new WPInv_Invoice( $invoice_id );
 
         // Ensure it exists and its not been paid for.
         if ( ! $invoice->get_id() || $invoice->is_paid() || $invoice->is_refunded() ) {
@@ -594,21 +608,26 @@ class WPInv_Ajax {
      * Creates an invoice item.
      */
     public static function create_invoice_item() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
-
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
-            exit;
-        }
 
         // We need an invoice and item details.
         if ( empty( $_POST['invoice_id'] ) || empty( $_POST['_wpinv_quick'] ) ) {
             exit;
         }
 
+        $invoice_id = absint( $_POST['invoice_id'] );
+
+        if ( empty( $invoice_id ) ) {
+            exit;
+        }
+
+        if ( ! wpinv_current_user_can( 'invoice_create_item', array( 'invoice_id' => $invoice_id ) ) ) {
+            exit;
+        }
+
         // Fetch the invoice.
-        $invoice = new WPInv_Invoice( intval( $_POST['invoice_id'] ) );
+        $invoice = new WPInv_Invoice( $invoice_id );
 
         // Ensure it exists and its not been paid for.
         if ( ! $invoice->get_id() || $invoice->is_paid() || $invoice->is_refunded() ) {
@@ -631,6 +650,10 @@ class WPInv_Ajax {
         if ( ! $item->exists() ) {
             $alert = __( 'Could not create invoice item. Please try again.', 'invoicing' );
             wp_send_json_success( compact( 'alert' ) );
+        }
+
+        if ( ! empty( $data['one-time'] ) ) {
+            update_post_meta( $item->get_id(), '_wpinv_one_time', 'yes' );
         }
 
         $item = new GetPaid_Form_Item( $item->get_id() );
@@ -664,21 +687,24 @@ class WPInv_Ajax {
      * Deletes an invoice item.
      */
     public static function remove_invoice_item() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
 
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
+        // We need an invoice and item.
+        $invoice_id = ! empty( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+        $item_id = ! empty( $_POST['item_id'] ) ? absint( $_POST['item_id'] ) : 0;
+
+        if ( empty( $invoice_id ) || empty( $item_id ) ) {
             exit;
         }
 
-        // We need an invoice and an item.
-        if ( empty( $_POST['post_id'] ) || empty( $_POST['item_id'] ) ) {
+        // Can the user manage the plugin?
+        if ( ! wpinv_current_user_can( 'invoice_remove_item', array( 'invoice_id' => $invoice_id, 'item_id' => $item_id ) ) ) {
             exit;
         }
 
         // Fetch the invoice.
-        $invoice = new WPInv_Invoice( intval( $_POST['post_id'] ) );
+        $invoice = new WPInv_Invoice( $invoice_id );
 
         // Ensure it exists and its not been paid for.
         if ( ! $invoice->get_id() || $invoice->is_paid() || $invoice->is_refunded() ) {
@@ -686,13 +712,13 @@ class WPInv_Ajax {
         }
 
         // Abort if the invoice does not have the specified item.
-        $item = $invoice->get_item( (int) $_POST['item_id'] );
+        $item = $invoice->get_item( $item_id );
 
         if ( empty( $item ) ) {
             exit;
         }
 
-        $invoice->remove_item( (int) $_POST['item_id'] );
+        $invoice->remove_item( $item_id );
 
         // Update totals.
         $invoice->recalculate_total();
@@ -714,21 +740,21 @@ class WPInv_Ajax {
      * Adds an item to an invoice.
      */
     public static function recalculate_full_prices() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
 
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
+        $invoice_id = ! empty( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+
+        if ( empty( $invoice_id ) ) {
             exit;
         }
 
-        // We need an invoice and item.
-        if ( empty( $_POST['post_id'] ) ) {
+        if ( ! wpinv_current_user_can( 'invoice_recalculate_full_prices', array( 'invoice_id' => $invoice_id ) ) ) {
             exit;
         }
 
         // Fetch the invoice.
-        $invoice = new WPInv_Invoice( intval( $_POST['post_id'] ) );
+        $invoice = new WPInv_Invoice( $invoice_id );
         $alert   = false;
 
         // Ensure it exists and its not been paid for.
@@ -740,7 +766,7 @@ class WPInv_Ajax {
 
         if ( ! empty( $_POST['getpaid_items'] ) ) {
 
-            foreach ( wp_kses_post_deep( $_POST['getpaid_items'] ) as $item_id => $args ) {
+            foreach ( wp_kses_post_deep( wp_unslash( $_POST['getpaid_items'] ) ) as $item_id => $args ) {
                 $item = new GetPaid_Form_Item( $item_id );
 
                 if ( $item->exists() ) {
@@ -751,7 +777,7 @@ class WPInv_Ajax {
                     $invoice->add_item( $item );
                 }
             }
-}
+        }
 
         $invoice->set_disable_taxes( ! empty( $_POST['disable_taxes'] ) );
 
@@ -784,21 +810,24 @@ class WPInv_Ajax {
      * Adds an item to an invoice.
      */
     public static function admin_add_invoice_item() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
 
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
+        // We need an invoice and item.
+        $invoice_id = ! empty( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+        $item_id = ! empty( $_POST['item_id'] ) ? absint( $_POST['item_id'] ) : 0;
+
+        if ( empty( $invoice_id ) || empty( $item_id ) ) {
             exit;
         }
 
-        // We need an invoice and item.
-        if ( empty( $_POST['post_id'] ) || empty( $_POST['item_id'] ) ) {
+        // Can the user manage the plugin?
+        if ( ! wpinv_current_user_can( 'invoice_add_item', array( 'invoice_id' => $invoice_id, 'item_id' => $item_id ) ) ) {
             exit;
         }
 
         // Fetch the invoice.
-        $invoice = new WPInv_Invoice( intval( $_POST['post_id'] ) );
+        $invoice = new WPInv_Invoice( $invoice_id );
         $alert   = false;
 
         // Ensure it exists and its not been paid for.
@@ -807,7 +836,8 @@ class WPInv_Ajax {
         }
 
         // Add the item.
-        $item  = new GetPaid_Form_Item( (int) $_POST['item_id'] );
+        $item  = new GetPaid_Form_Item( $item_id );
+
         $error = $invoice->add_item( $item );
 
         if ( is_wp_error( $error ) ) {
@@ -828,21 +858,23 @@ class WPInv_Ajax {
      * Adds a items to an invoice.
      */
     public static function add_invoice_items() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
 
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
+        $invoice_id = ! empty( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+
+        // We need an invoice and items.
+        if ( empty( $invoice_id ) || empty( $_POST['items'] ) ) {
             exit;
         }
 
-        // We need an invoice and items.
-        if ( empty( $_POST['post_id'] ) || empty( $_POST['items'] ) ) {
+        // Can the user manage the plugin?
+        if ( ! wpinv_current_user_can( 'invoice_add_items', array( 'invoice_id' => $invoice_id ) ) ) {
             exit;
         }
 
         // Fetch the invoice.
-        $invoice = new WPInv_Invoice( intval( $_POST['post_id'] ) );
+        $invoice = new WPInv_Invoice( $invoice_id );
         $alert   = false;
 
         // Ensure it exists and its not been paid for.
@@ -886,11 +918,11 @@ class WPInv_Ajax {
      * Retrieves items that should be added to an invoice.
      */
     public static function get_invoicing_items() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
 
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
+        // Can the user manage the plugin?
+        if ( ! wpinv_current_user_can( 'get_invoicing_items' ) ) {
             exit;
         }
 
@@ -912,6 +944,10 @@ class WPInv_Ajax {
                     'key'     => '_wpinv_type',
                     'compare' => '!=',
                     'value'   => 'package',
+                ),
+                array(
+                    'key'     => '_wpinv_one_time',
+                    'compare' => 'NOT EXISTS',
                 ),
             ),
         );
@@ -942,12 +978,14 @@ class WPInv_Ajax {
      * Retrieves items that should be added to an invoice.
      */
     public static function get_customers() {
-
         // Verify nonce.
         check_ajax_referer( 'wpinv-nonce' );
 
-        if ( ! wpinv_current_user_can_manage_invoicing() ) {
-            exit;
+        $invoice_id = ! empty( $_REQUEST['post_id'] ) ? (int) $_REQUEST['post_id'] : 0;
+
+        // Can the user manage the plugin?
+        if ( ! wpinv_current_user_can( 'invoice_get_customers', array( 'invoice_id' => $invoice_id ) ) ) {
+            die( -1 );
         }
 
         // We need a search term.
