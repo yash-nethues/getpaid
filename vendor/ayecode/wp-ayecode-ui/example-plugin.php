@@ -3,15 +3,15 @@
 Plugin Name: AyeCode UI
 Plugin URI: https://ayecode.io/
 Description: This is an example plugin to test AyeCode UI Quickly.
-Version: 1.0.0
+Version: 0.2.40
 Author: AyeCode Ltd
 Author URI: https://userswp.io
 License: GPL-2.0+
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 Text Domain: ayecode-ui
 Domain Path: /languages
-Requires at least: 4.9
-Tested up to: 5.4
+Requires at least: 5.0
+Tested up to: 6.8
 */
 
 // If this file is called directly, abort.
@@ -41,7 +41,7 @@ class AyeCode_UI_Plugin {
 			wp_head();
 			echo "</head>";
 			echo "<body class='bsui'>";
-			echo $this->get_examples();
+			echo $this->get_examples(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 			wp_footer();
 			echo "</body>";
 			exit;

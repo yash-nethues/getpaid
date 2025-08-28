@@ -24,7 +24,14 @@ class GetPaid_Manual_Gateway extends GetPaid_Payment_Gateway {
 	 *
 	 * @var array
 	 */
-    protected $supports = array( 'subscription', 'addons', 'single_subscription_group', 'multiple_subscription_groups' );
+    protected $supports = array(
+        'subscription',
+        'addons',
+        'single_subscription_group',
+        'multiple_subscription_groups',
+        'subscription_date_change',
+        'subscription_bill_times_change',
+    );
 
     /**
 	 * Payment method order.
@@ -42,7 +49,7 @@ class GetPaid_Manual_Gateway extends GetPaid_Payment_Gateway {
         $this->title        = __( 'Test Gateway', 'invoicing' );
         $this->method_title = __( 'Test Gateway', 'invoicing' );
 
-        add_action( 'getpaid_should_renew_subscription', array( $this, 'maybe_renew_subscription' ) );
+        add_action( 'getpaid_should_renew_subscription', array( $this, 'maybe_renew_subscription' ), 10, 2 );
     }
 
     /**
@@ -68,7 +75,7 @@ class GetPaid_Manual_Gateway extends GetPaid_Payment_Gateway {
             foreach ( $subscriptions as $subscription ) {
                 if ( $subscription->exists() ) {
                     $duration = strtotime( $subscription->get_expiration() ) - strtotime( $subscription->get_date_created() );
-                    $expiry   = date( 'Y-m-d H:i:s', ( current_time( 'timestamp' ) + $duration ) );
+                    $expiry   = gmdate( 'Y-m-d H:i:s', ( current_time( 'timestamp' ) + $duration ) );
 
                     $subscription->set_next_renewal_date( $expiry );
                     $subscription->set_date_created( current_time( 'mysql' ) );
@@ -76,37 +83,33 @@ class GetPaid_Manual_Gateway extends GetPaid_Payment_Gateway {
                     $subscription->activate();
                 }
             }
-}
+        }
 
         // Send to the success page.
         wpinv_send_to_success_page( array( 'invoice_key' => $invoice->get_key() ) );
 
     }
 
-    /**
+	/**
 	 * (Maybe) renews a manual subscription profile.
 	 *
 	 *
-     * @param WPInv_Subscription $subscription
+	 * @param WPInv_Subscription $subscription
 	 */
-	public function maybe_renew_subscription( $subscription ) {
+	public function maybe_renew_subscription( $subscription, $parent_invoice ) {
+		// Ensure its our subscription && it's active.
+		if ( ! empty( $parent_invoice ) && $this->id === $parent_invoice->get_gateway() && $subscription->has_status( 'active trialling' ) ) {
+			// Renew the subscription.
+			$subscription->add_payment(
+				array(
+					'transaction_id' => $subscription->get_parent_payment()->generate_key(),
+					'gateway'        => $this->id,
+				)
+			);
 
-        // Ensure its our subscription && it's active.
-        if ( $this->id === $subscription->get_gateway() && $subscription->has_status( 'active trialling' ) ) {
-
-            // Renew the subscription.
-            $subscription->add_payment(
-                array(
-                    'transaction_id' => $subscription->get_parent_payment()->generate_key(),
-                    'gateway'        => $this->id,
-                )
-            );
-
-            $subscription->renew();
-
-        }
-
-    }
+			$subscription->renew();
+		}
+	}
 
     /**
 	 * Processes invoice addons.

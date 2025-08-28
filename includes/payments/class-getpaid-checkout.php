@@ -36,10 +36,10 @@ class GetPaid_Checkout {
 		$this->validate_submission();
 
 		// Prepare the invoice.
-		$items      = $this->get_submission_items();
-		$invoice    = $this->get_submission_invoice();
-		$invoice    = $this->process_submission_invoice( $invoice, $items );
-		$prepared   = $this->prepare_submission_data_for_saving();
+		$items    = $this->get_submission_items();
+		$invoice  = $this->get_submission_invoice();
+		$invoice  = $this->process_submission_invoice( $invoice, $items );
+		$prepared = $this->prepare_submission_data_for_saving();
 
 		$this->prepare_billing_info( $invoice );
 
@@ -153,6 +153,7 @@ class GetPaid_Checkout {
 		// Set-up the invoice details.
 		$invoice->set_email( sanitize_email( $submission->get_billing_email() ) );
 		$invoice->set_user_id( $this->get_submission_customer() );
+		$invoice->set_submission_id( $submission->id );
 		$invoice->set_payment_form( absint( $submission->get_payment_form()->get_id() ) );
         $invoice->set_items( $items );
         $invoice->set_fees( $submission->get_fees() );

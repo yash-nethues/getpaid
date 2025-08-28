@@ -24,7 +24,14 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 	 *
 	 * @var array
 	 */
-	protected $supports = array( 'subscription', 'addons', 'single_subscription_group', 'multiple_subscription_groups' );
+	protected $supports = array(
+		'subscription',
+		'addons',
+		'single_subscription_group',
+		'multiple_subscription_groups',
+		'subscription_date_change',
+		'subscription_bill_times_change',
+	);
 
     /**
 	 * Payment method order.
@@ -32,6 +39,16 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 	 * @var int
 	 */
 	public $order = 8;
+
+	/**
+	 * Bank transfer instructions.
+	 */
+	public $instructions;
+
+	/**
+	 * Locale array.
+	 */
+	public $locale;
 
     /**
 	 * Class constructor.
@@ -48,12 +65,31 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 		add_action( 'getpaid_invoice_line_items', array( $this, 'thankyou_page' ), 40 );
 		add_action( 'wpinv_pdf_content_billing', array( $this, 'thankyou_page' ), 11 );
 		add_action( 'wpinv_email_invoice_details', array( $this, 'email_instructions' ), 10, 3 );
-		add_action( 'getpaid_should_renew_subscription', array( $this, 'maybe_renew_subscription' ) );
+		add_action( 'getpaid_should_renew_subscription', array( $this, 'maybe_renew_subscription' ), 12, 2 );
 		add_action( 'getpaid_invoice_status_publish', array( $this, 'invoice_paid' ), 20 );
 
-    }
+		add_filter( 'wpinv_' . $this->id . '_support_subscription', array( $this, 'supports_subscription' ), 20, 1 );
+		add_filter( 'getpaid_' . $this->id . '_support_subscription', array( $this, 'supports_subscription' ), 20, 1 );
+		add_filter( 'getpaid_' . $this->id . '_supports_subscription', array( $this, 'supports_subscription' ), 20, 1 );
+	}
 
-    /**
+	/**
+	 * Check gateway supports for subscription.
+	 *
+	 * @since 2.8.24
+	 *
+	 * @param bool $supports True if supports else False.
+	 * @return bool True if supports else False.
+	 */
+	public function supports_subscription( $supports ) {
+		if ( $supports && (int) $this->get_option( 'no_subscription' ) ) {
+			$supports = false;
+		}
+
+		return $supports;
+	}
+
+	/**
 	 * Process Payment.
 	 *
 	 * @param WPInv_Invoice $invoice Invoice.
@@ -140,7 +176,7 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 		$country = $invoice->get_country();
 		$locale  = $this->get_country_locale();
 
-		// Get sortcode label in the $locale array and use appropriate one.
+		// Get shortcode label in the $locale array and use appropriate one.
 		$sortcode = isset( $locale[ $country ]['sortcode']['label'] ) ? $locale[ $country ]['sortcode']['label'] : __( 'Sort code', 'invoicing' );
 
         $bank_fields = array(
@@ -252,9 +288,27 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 	 * @param array $admin_settings
 	 */
 	public function admin_settings( $admin_settings ) {
-
-        $admin_settings['bank_transfer_desc']['std']    = __( "Make your payment directly into our bank account. Please use your Invoice Number as the payment reference. Your invoice won't be processed until the funds have cleared in our account.", 'invoicing' );
+		$admin_settings['bank_transfer_desc']['std']    = __( "Make your payment directly into our bank account. Please use your Invoice Number as the payment reference. Your invoice won't be processed until the funds have cleared in our account.", 'invoicing' );
 		$admin_settings['bank_transfer_active']['desc'] = __( 'Enable bank transfer', 'invoicing' );
+
+		$_settings = array();
+
+		foreach ( $admin_settings as $key => $setting ) {
+			$_settings[ $key ] = $setting;
+
+			if ( $key == 'bank_transfer_active' ) {
+				// Enable/disable subscriptions setting.
+				$_settings['bank_transfer_no_subscription'] = array(
+					'id' => 'bank_transfer_no_subscription',
+					'type' => 'checkbox',
+					'name' => __( 'Disable Subscriptions', 'invoicing' ),
+					'desc' => __( 'Tick to disable support for recurring items.', 'invoicing' ),
+					'std' => 0
+				);
+			}
+		}
+
+		$admin_settings = $_settings;
 
 		$locale  = $this->get_country_locale();
 
@@ -263,39 +317,39 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 		$sortcode = isset( $locale[ $country ]['sortcode']['label'] ) ? $locale[ $country ]['sortcode']['label'] : __( 'Sort code', 'invoicing' );
 
 		$admin_settings['bank_transfer_ac_name'] = array(
-            'type' => 'text',
-            'id'   => 'bank_transfer_ac_name',
-            'name' => __( 'Account Name', 'invoicing' ),
+			'type' => 'text',
+			'id'   => 'bank_transfer_ac_name',
+			'name' => __( 'Account Name', 'invoicing' ),
 		);
 
 		$admin_settings['bank_transfer_ac_no'] = array(
-            'type' => 'text',
-            'id'   => 'bank_transfer_ac_no',
-            'name' => __( 'Account Number', 'invoicing' ),
+			'type' => 'text',
+			'id'   => 'bank_transfer_ac_no',
+			'name' => __( 'Account Number', 'invoicing' ),
 		);
 
 		$admin_settings['bank_transfer_bank_name'] = array(
-            'type' => 'text',
-            'id'   => 'bank_transfer_bank_name',
-            'name' => __( 'Bank Name', 'invoicing' ),
+			'type' => 'text',
+			'id'   => 'bank_transfer_bank_name',
+			'name' => __( 'Bank Name', 'invoicing' ),
 		);
 
 		$admin_settings['bank_transfer_ifsc'] = array(
-            'type' => 'text',
-            'id'   => 'bank_transfer_ifsc',
-            'name' => __( 'IFSC Code', 'invoicing' ),
+			'type' => 'text',
+			'id'   => 'bank_transfer_ifsc',
+			'name' => __( 'IFSC Code', 'invoicing' ),
 		);
 
 		$admin_settings['bank_transfer_iban'] = array(
-            'type' => 'text',
-            'id'   => 'bank_transfer_iban',
-            'name' => __( 'IBAN', 'invoicing' ),
+			'type' => 'text',
+			'id'   => 'bank_transfer_iban',
+			'name' => __( 'IBAN', 'invoicing' ),
 		);
 
 		$admin_settings['bank_transfer_bic'] = array(
-            'type' => 'text',
-            'id'   => 'bank_transfer_bic',
-            'name' => __( 'BIC/Swift Code', 'invoicing' ),
+			'type' => 'text',
+			'id'   => 'bank_transfer_bic',
+			'name' => __( 'BIC/Swift Code', 'invoicing' ),
 		);
 
 		$admin_settings['bank_transfer_sort_code'] = array(
@@ -305,14 +359,14 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 		);
 
 		$admin_settings['bank_transfer_info'] = array(
-            'id'   => 'bank_transfer_info',
-            'name' => __( 'Instructions', 'invoicing' ),
-            'desc' => __( 'Instructions that will be added to the thank you page and emails.', 'invoicing' ),
-            'type' => 'textarea',
-            'std'  => __( "Make your payment directly into our bank account. Please use your Invoice Number as the payment reference. Your invoice won't be processed until the funds have cleared in our account.", 'invoicing' ),
-            'cols' => 50,
-            'rows' => 5,
-        );
+			'id'   => 'bank_transfer_info',
+			'name' => __( 'Instructions', 'invoicing' ),
+			'desc' => __( 'Instructions that will be added to the thank you page and emails.', 'invoicing' ),
+			'type' => 'textarea',
+			'std'  => __( "Make your payment directly into our bank account. Please use your Invoice Number as the payment reference. Your invoice won't be processed until the funds have cleared in our account.", 'invoicing' ),
+			'cols' => 50,
+			'rows' => 5,
+		);
 
 		return $admin_settings;
 	}
@@ -338,16 +392,29 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 	 * (Maybe) renews a bank transfer subscription profile.
 	 *
 	 *
-     * @param WPInv_Subscription $subscription
+	 * @param WPInv_Subscription $subscription
 	 */
-	public function maybe_renew_subscription( $subscription ) {
+	public function maybe_renew_subscription( $subscription, $parent_invoice ) {
+		// Ensure its our subscription && it's active.
+		if ( ! empty( $parent_invoice ) && $this->id === $parent_invoice->get_gateway() && $subscription->has_status( 'active trialling' ) ) {
+			add_filter( 'getpaid_invoice_notifications_is_payment_form_invoice', array( $this, 'force_is_payment_form_invoice' ), 10, 2 );
 
-        // Ensure its our subscription && it's active.
-        if ( $this->id === $subscription->get_gateway() && $subscription->has_status( 'active trialling' ) ) {
-			$subscription->create_payment();
-        }
+			$invoice = $subscription->create_payment();
 
-    }
+			if ( ! empty( $invoice ) ) {
+				$is_logged_in = is_user_logged_in();
+
+				// Cron run.
+				if ( ! $is_logged_in ) {
+					$note = wp_sprintf( __( 'Renewal %1$s created with the status "%2$s".', 'invoicing' ), $invoice->get_invoice_quote_type(), wpinv_status_nicename( $invoice->get_status(), $invoice ) );
+
+					$invoice->add_note( $note, false, $is_logged_in, ! $is_logged_in );
+				}
+			}
+
+			remove_filter( 'getpaid_invoice_notifications_is_payment_form_invoice', array( $this, 'force_is_payment_form_invoice' ), 10, 2 );
+		}
+	}
 
 	/**
 	 * Process a bank transfer payment.
@@ -374,7 +441,7 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 				foreach ( $subscriptions as $subscription ) {
 					if ( $subscription->exists() ) {
 						$duration = strtotime( $subscription->get_expiration() ) - strtotime( $subscription->get_date_created() );
-						$expiry   = date( 'Y-m-d H:i:s', ( current_time( 'timestamp' ) + $duration ) );
+						$expiry   = gmdate( 'Y-m-d H:i:s', ( current_time( 'timestamp' ) + $duration ) );
 
 						$subscription->set_next_renewal_date( $expiry );
 						$subscription->set_date_created( current_time( 'mysql' ) );
@@ -382,8 +449,8 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 						$subscription->activate();
 					}
 				}
-}
-} else {
+			}
+		} else {
 
 			$subscription = getpaid_get_subscription( $invoice->get_subscription_id() );
 
@@ -391,9 +458,26 @@ class GetPaid_Bank_Transfer_Gateway extends GetPaid_Payment_Gateway {
 			if ( $subscription && $subscription->exists() ) {
 				$subscription->add_payment( array(), $invoice );
 				$subscription->renew( strtotime( $invoice->get_date_created() ) );
-					}
-}
+			}
+		}
 
     }
+
+	/**
+	 * Force created from payment false to allow email for auto renewal generation invoice.
+	 *
+	 * @since 2.8.11
+	 *
+	 * @param bool $is_payment_form_invoice True when invoice created via payment form else false.
+	 * @param int  $invoice Invoice ID.
+	 * @return bool True when invoice created via payment form else false.
+	 */
+	public function force_is_payment_form_invoice( $is_payment_form_invoice, $invoice ) {
+		if ( $is_payment_form_invoice ) {
+			$is_payment_form_invoice = false;
+		}
+
+		return $is_payment_form_invoice;
+	}
 
 }

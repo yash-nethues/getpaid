@@ -1,5 +1,6 @@
 window.getpaid = window.getpaid || {}
 
+
 // Init the select2 items container.
 getpaid.init_select2_item_search = function (select, parent) {
 
@@ -184,7 +185,16 @@ jQuery(function ($) {
 		var _input = $( this ).find('input')
 		_input.prop( 'checked', ! _input.prop( 'checked' ) );
 
-	})
+	});
+
+	$('.getpaid-merge-tags').click(function() {
+		const tags = $(this).parent().find('.getpaid-merge-tags-content');
+		// fix css d-none !important rule
+		if(tags.hasClass('d-none')) {
+			tags.css({ 'display' : 'none' }) && tags.removeClass('d-none');
+		}
+		tags.slideToggle('fast');
+	});
 
 	// returns a random string
 	function random_string() {
@@ -246,7 +256,7 @@ jQuery(function ($) {
 		e.preventDefault()
 
 		var metabox = $(this).closest('.bsui');
-		var user_id = metabox.find('#wpinv_post_author_override').val()
+		var user_id = metabox.find('#wpinv_post_author_override').val();
 
 		// Ensure that we have a user id and that we are not adding a new user.
 		if (!user_id || $(this).attr('disabled')) {
@@ -263,6 +273,7 @@ jQuery(function ($) {
 		var data = {
 			action: 'wpinv_get_billing_details',
 			user_id: user_id,
+			post_id: WPInv_Admin.post_ID,
 			_ajax_nonce: WPInv_Admin.wpinv_nonce
 		}
 
@@ -365,6 +376,7 @@ jQuery(function ($) {
 		var data = {
 			action: 'wpinv_check_new_user_email',
 			email: email,
+			post_id: WPInv_Admin.post_ID,
 			_ajax_nonce: WPInv_Admin.wpinv_nonce
 		}
 
@@ -600,17 +612,16 @@ jQuery(function ($) {
 		wpinvBlock('#wpinv_items_wrap')
 
 		$.post(WPInv_Admin.ajax_url, data)
-
 			.done(function (response) {
-
 				if (response.success) {
 					if (response.data.alert) {
 						alert(response.data.alert)
 					}else{
-						$('#wpinv_items_wrap').replaceWith(response.data.table)
+						$('#wpinv_items_wrap').replaceWith(response.data.table);
+						// Trigger on recalculate full prices done.
+						$("body").trigger("getpaid_on_recalculate_full_prices", response.data);
 					}
 				}
-
 			})
 
 			.always(function (response) {
@@ -686,6 +697,7 @@ jQuery(function ($) {
 				'type': $('.wpinv-quick-type').val(),
 				'vat_rule': $('.wpinv-quick-vat-rule').val(),
 				'vat_class': $('.wpinv-quick-vat-class').val(),
+				'one-time': $('#_wpinv_quick-one-time').is(':checked') ? 1 : 0,
 			}
 		}
 
@@ -1540,6 +1552,39 @@ jQuery(function ($) {
 
 	}
 
+	if ($('.getpaid-anonymization-logs').length) {
+        $(document).on('click', '.getpaid-anonymization-logs .toggle-details', function() {
+            var $button = $(this);
+            var $detailsRow = $button.closest('tr').next('.log-details');
+
+            // Close all other open details
+            $('.log-details').not($detailsRow).hide();
+            $('.toggle-details').not($button).attr('aria-expanded', 'false');
+            $('.toggle-details').not($button).find('.dashicons').removeClass('dashicons-arrow-up-alt2').addClass('dashicons-arrow-down-alt2');
+
+            $detailsRow.toggle();
+
+            var isExpanded = $detailsRow.is(':visible');
+            $button.attr('aria-expanded', isExpanded);
+        });
+    }
+
+    // Toggle data retention settings.
+    function toggleDataRetentionSettings() {
+        var show = $( '[name="wpinv_settings[data_retention_method]' ).val() === 'anonymize';
+        $( '[name="wpinv_settings[data_retention_period]"]' ).closest( 'tr' ).toggle( show );
+    }
+
+    $( '[name="wpinv_settings[data_retention_method]"' ).on( 'change', toggleDataRetentionSettings );
+    toggleDataRetentionSettings();
+
+	// check int input to not accept -ve numbers or strings.
+	$(document).on('input', '[name="wpinv_item_price"], [name="wpinv_minimum_price"], input.getpaid-force-integer', function (e) {
+		var $input = $(this);
+		$input.val(function (_, currentValue) {
+			return currentValue.replace(/[^\d.]+/g, '');
+		});
+	});
 });
 
 function wpinvBlock(el, message) {

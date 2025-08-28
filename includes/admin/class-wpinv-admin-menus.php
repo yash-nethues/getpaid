@@ -19,6 +19,7 @@ class WPInv_Admin_Menus {
         add_action( 'admin_menu', array( $this, 'add_subscriptions_menu' ), 40 );
         add_action( 'admin_menu', array( $this, 'add_addons_menu' ), 100 );
         add_action( 'admin_menu', array( $this, 'add_settings_menu' ), 60 );
+        add_action( 'admin_menu', array( $this, 'add_anonymization_logs_menu' ), 40 );
         add_action( 'admin_menu', array( $this, 'remove_admin_submenus' ), 10 );
         add_action( 'admin_head-nav-menus.php', array( $this, 'add_nav_menu_meta_boxes' ) );
     }
@@ -88,17 +89,21 @@ class WPInv_Admin_Menus {
         <div class="wrap wpi-customers-wrap">
             <style>
                 .column-primary {
-                    width: 30%;
+                    width: 240px;
+                }
+                .manage-column:not(.column-primary):not(.column-cb) {
+                    width: 120px;
                 }
             </style>
             <h1><?php echo esc_html( __( 'Customers', 'invoicing' ) ); ?>&nbsp;<a href="<?php echo esc_url( wp_nonce_url( add_query_arg( 'getpaid-admin-action', 'download_customers' ), 'getpaid-nonce', 'getpaid-nonce' ) ); ?>" class="page-title-action"><?php esc_html_e( 'Export', 'invoicing' ); ?></a></h1>
-            <form method="post">
-            <?php
-                $table = new WPInv_Customers_Table();
-                $table->prepare_items();
-                $table->search_box( __( 'Search Customers', 'invoicing' ), 'search-customers' );
-                $table->display();
-            ?>
+            <form method="get" style="overflow: auto; width: 100%" action=<?php echo esc_url( add_query_arg( array() ) ); ?>>
+                <input type="hidden" name="page" value="wpinv-customers" />
+                <?php
+                    $table = new WPInv_Customers_Table();
+                    $table->prepare_items();
+                    $table->search_box( __( 'Search Customers', 'invoicing' ), 'search-customers' );
+                    $table->display();
+                ?>
             </form>
         </div>
         <?php
@@ -115,6 +120,22 @@ class WPInv_Admin_Menus {
             apply_filters( 'invoicing_capability', wpinv_get_capability() ),
             'wpinv-settings',
             array( $this, 'options_page' )
+        );
+    }
+
+    /**
+     * Registers the anonymization logs menu.
+     *
+     * @since 2.8.22
+     */
+    public function add_anonymization_logs_menu() {
+        $anonymization_logs_page = new GetPaid_Anonymization_Logs();
+        add_management_page(
+            __( 'Anonymization Logs', 'invoicing' ),
+            __( 'Anonymization Logs', 'invoicing' ),
+            'manage_options',
+            'wpinv-anonymization-logs',
+            array( $anonymization_logs_page, 'display_logs' )
         );
     }
 
@@ -177,7 +198,7 @@ class WPInv_Admin_Menus {
 
                     $active = $active_tab == $tab_id ? ' nav-tab-active' : '';
 
-                    echo '<a href="' . esc_url( $tab_url ) . '" title="' . esc_attr( $tab_name ) . '" class="nav-tab' . esc_attr( $active ) . '">';
+                    echo '<a href="' . esc_url( $tab_url ) . '" title="' . esc_attr( $tab_name ) . '" class="nav-tab ' . esc_attr( $active ) . '">';
                     echo esc_html( $tab_name );
                     echo '</a>';
                 }
@@ -216,7 +237,7 @@ class WPInv_Admin_Menus {
             ?>
             <div id="tab_container">
                 <form method="post" action="options.php">
-                    <table class="form-table">
+                    <table class="form-tablex">
                         <?php
                         settings_fields( 'wpinv_settings' );
 

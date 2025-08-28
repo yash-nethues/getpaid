@@ -24,7 +24,16 @@ class GetPaid_Authorize_Net_Gateway extends GetPaid_Authorize_Net_Legacy_Gateway
 	 *
 	 * @var array
 	 */
-    protected $supports = array( 'subscription', 'sandbox', 'tokens', 'addons', 'single_subscription_group', 'multiple_subscription_groups' );
+    protected $supports = array(
+        'subscription',
+        'sandbox',
+        'tokens',
+        'addons',
+        'single_subscription_group',
+        'multiple_subscription_groups',
+        'subscription_date_change',
+        'subscription_bill_times_change',
+    );
 
     /**
 	 * Payment method order.
@@ -70,7 +79,7 @@ class GetPaid_Authorize_Net_Gateway extends GetPaid_Authorize_Net_Legacy_Gateway
         $this->method_title         = __( 'Authorize.Net', 'invoicing' );
         $this->notify_url           = getpaid_get_non_query_string_ipn_url( $this->id );
 
-        add_action( 'getpaid_should_renew_subscription', array( $this, 'maybe_renew_subscription' ) );
+        add_action( 'getpaid_should_renew_subscription', array( $this, 'maybe_renew_subscription' ), 11, 2 );
         add_filter( 'getpaid_authorizenet_sandbox_notice', array( $this, 'sandbox_notice' ) );
         parent::__construct();
     }
@@ -439,6 +448,8 @@ class GetPaid_Authorize_Net_Gateway extends GetPaid_Authorize_Net_Legacy_Gateway
         wpinv_clear_errors();
 		$response_code = (int) $result->transactionResponse->responseCode;
 
+        $invoice->add_note( 'Transaction Response: ' . print_r( $result->transactionResponse, true ), false, false, true );
+
 		// Succeeded.
 		if ( 1 == $response_code || 4 == $response_code ) {
 
@@ -693,15 +704,13 @@ class GetPaid_Authorize_Net_Gateway extends GetPaid_Authorize_Net_Legacy_Gateway
 	 * (Maybe) renews an authorize.net subscription profile.
 	 *
 	 *
-     * @param WPInv_Subscription $subscription
+	 * @param WPInv_Subscription $subscription
 	 */
-	public function maybe_renew_subscription( $subscription ) {
-
-        // Ensure its our subscription && it's active.
-        if ( $this->id === $subscription->get_gateway() && $subscription->has_status( 'active trialling' ) ) {
-            $this->renew_subscription( $subscription );
-        }
-
+	public function maybe_renew_subscription( $subscription, $parent_invoice ) {
+		// Ensure its our subscription && it's active.
+		if ( ! empty( $parent_invoice ) && $this->id === $parent_invoice->get_gateway() && $subscription->has_status( 'active trialling' ) ) {
+			$this->renew_subscription( $subscription );
+		}
 	}
 
     /**
@@ -756,8 +765,12 @@ class GetPaid_Authorize_Net_Gateway extends GetPaid_Authorize_Net_Legacy_Gateway
 
         }
 
-        $subscription->add_payment( array(), $new_invoice );
-        $subscription->renew();
+        if ( ! $new_invoice->needs_payment() ) {
+            $subscription->renew();
+            $subscription->after_add_payment( $new_invoice );
+        } else {
+            $subscription->failing();
+        }
     }
 
     /**
@@ -857,7 +870,7 @@ class GetPaid_Authorize_Net_Gateway extends GetPaid_Authorize_Net_Legacy_Gateway
             'type' => 'text',
             'id'   => 'authorizenet_login_id',
             'name' => __( 'API Login ID', 'invoicing' ),
-            'desc' => '<a href="https://support.authorize.net/s/article/How-do-I-obtain-my-API-Login-ID-and-Transaction-Key"><em>' . __( 'How do I obtain my API Login ID and Transaction Key?', 'invoicing' ) . '</em></a>',
+            'desc' => '<a href="https://support.authorize.net/knowledgebase/Knowledgearticle/?code=000001271"><em>' . __( 'How do I obtain my API Login ID and Transaction Key?', 'invoicing' ) . '</em></a>',
         );
 
         $admin_settings['authorizenet_transaction_key'] = array(
@@ -870,7 +883,7 @@ class GetPaid_Authorize_Net_Gateway extends GetPaid_Authorize_Net_Legacy_Gateway
             'type' => 'text',
             'id'   => 'authorizenet_signature_key',
             'name' => __( 'Signature Key', 'invoicing' ),
-            'desc' => '<a href="https://support.authorize.net/s/article/What-is-a-Signature-Key"><em>' . __( 'Learn more.', 'invoicing' ) . '</em></a>',
+            'desc' => '<a href="https://support.authorize.net/knowledgebase/Knowledgearticle/?code=000001271"><em>' . __( 'Learn more.', 'invoicing' ) . '</em></a>',
         );
 
         $admin_settings['authorizenet_ipn_url'] = array(
@@ -878,7 +891,7 @@ class GetPaid_Authorize_Net_Gateway extends GetPaid_Authorize_Net_Legacy_Gateway
             'id'       => 'authorizenet_ipn_url',
             'name'     => __( 'Webhook URL', 'invoicing' ),
             'std'      => $this->notify_url,
-            'desc'     => __( 'Create a new webhook using this URL as the endpoint URL and set it to receive all payment events.', 'invoicing' ) . ' <a href="https://support.authorize.net/s/article/How-do-I-add-edit-Webhook-notification-end-points"><em>' . __( 'Learn more.', 'invoicing' ) . '</em></a>',
+            'desc'     => __( 'Create a new webhook using this URL as the endpoint URL and set it to receive all payment events.', 'invoicing' ) . ' <a href="https://support.authorize.net/knowledgebase/Knowledgearticle/?code=000001542"><em>' . __( 'Learn more.', 'invoicing' ) . '</em></a>',
             'custom'   => 'authorizenet',
             'readonly' => true,
         );

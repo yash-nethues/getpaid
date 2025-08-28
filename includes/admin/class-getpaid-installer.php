@@ -20,6 +20,9 @@ defined( 'ABSPATH' ) || exit;
  */
 class GetPaid_Installer {
 
+	private static $schema = null;
+	private static $schema_version = null;
+
 	/**
 	 * Upgrades the install.
 	 *
@@ -65,9 +68,6 @@ class GetPaid_Installer {
 	 *
 	 */
 	public function upgrade_from_0() {
-		$this->create_subscriptions_table();
-		$this->create_invoices_table();
-		$this->create_invoice_items_table();
 
 		// Save default tax rates.
 		update_option( 'wpinv_tax_rates', wpinv_get_data( 'tax-rates' ) );
@@ -105,15 +105,6 @@ class GetPaid_Installer {
 			}
 		}
 
-		$this->upgrade_from_102();
-	}
-
-	/**
-	 * Upgrade to 1.0.3
-	 *
-	 */
-	public function upgrade_from_102() {
-		$this->create_subscriptions_table();
 		$this->upgrade_from_118();
 	}
 
@@ -122,29 +113,16 @@ class GetPaid_Installer {
 	 *
 	 */
 	public function upgrade_from_118() {
-		$this->create_invoices_table();
-		$this->create_invoice_items_table();
 		$this->migrate_old_invoices();
+		$this->upgrade_from_279();
 	}
 
 	/**
-	 * Upgrade to version 2.0.8.
+	 * Upgrade to version 2.0.0.
 	 *
 	 */
-	public function upgrade_from_207() {
-		global $wpdb;
-		$wpdb->query( "ALTER TABLE {$wpdb->prefix}getpaid_invoice_items MODIFY COLUMN quantity FLOAT(20);" );
-		$this->upgrade_from_2615();
-	}
-
-	/**
-	 * Upgrade to version 2.6.16.
-	 *
-	 */
-	public function upgrade_from_2615() {
-		global $wpdb;
-		$wpdb->query( "ALTER TABLE {$wpdb->prefix}getpaid_invoice_items MODIFY COLUMN item_price DECIMAL(16,4) NOT NULL DEFAULT '0', MODIFY custom_price DECIMAL(16,4) NOT NULL DEFAULT '0', MODIFY discount DECIMAL(16,4) NOT NULL DEFAULT '0', MODIFY subtotal DECIMAL(16,4) NOT NULL DEFAULT '0', MODIFY price DECIMAL(16,4) NOT NULL DEFAULT '0';" );
-		$wpdb->query( "ALTER TABLE {$wpdb->prefix}getpaid_invoices MODIFY COLUMN subtotal DECIMAL(16,4) NOT NULL DEFAULT '0', MODIFY tax DECIMAL(16,4) NOT NULL DEFAULT '0', MODIFY fees_total DECIMAL(16,4) NOT NULL DEFAULT '0', MODIFY total DECIMAL(16,4) NOT NULL DEFAULT '0', MODIFY discount DECIMAL(16,4) NOT NULL DEFAULT '0';" );
+	public function upgrade_from_279() {
+		self::migrate_old_customers();
 	}
 
 	/**
@@ -159,71 +137,53 @@ class GetPaid_Installer {
 	 * Retreives GetPaid pages.
 	 *
 	 */
-	public static function get_pages() {
+	public static function get_pages( $filtered = false ) {
+		$gutenberg = getpaid_is_gutenberg();
 
 		return apply_filters(
 			'wpinv_create_pages',
 			array(
-
 				// Checkout page.
-				'checkout_page'             => array(
+				'checkout_page' => array(
 					'name'    => _x( 'gp-checkout', 'Page slug', 'invoicing' ),
 					'title'   => _x( 'Checkout', 'Page title', 'invoicing' ),
-					'content' => '
-						<!-- wp:shortcode -->
-						[wpinv_checkout]
-						<!-- /wp:shortcode -->
-					',
-					'parent'  => '',
+					'content' => getpaid_page_content_checkout( $filtered, $gutenberg ),
+					'parent'  => ''
 				),
 
 				// Invoice history page.
-				'invoice_history_page'      => array(
+				'invoice_history_page' => array(
 					'name'    => _x( 'gp-invoices', 'Page slug', 'invoicing' ),
 					'title'   => _x( 'My Invoices', 'Page title', 'invoicing' ),
-					'content' => '
-					<!-- wp:shortcode -->
-					[wpinv_history]
-					<!-- /wp:shortcode -->
-				',
-					'parent'  => '',
+					'content' => getpaid_page_content_invoice_history( $filtered, $gutenberg ),
+					'parent'  => ''
 				),
 
 				// Success page content.
-				'success_page'              => array(
+				'success_page' => array(
 					'name'    => _x( 'gp-receipt', 'Page slug', 'invoicing' ),
 					'title'   => _x( 'Payment Confirmation', 'Page title', 'invoicing' ),
-					'content' => '
-					<!-- wp:shortcode -->
-					[wpinv_receipt]
-					<!-- /wp:shortcode -->
-				',
-					'parent'  => 'gp-checkout',
+					'content' => getpaid_page_content_receipt( $filtered, $gutenberg ),
+					'parent'  => 'gp-checkout'
 				),
 
 				// Failure page content.
-				'failure_page'              => array(
+				'failure_page' => array(
 					'name'    => _x( 'gp-transaction-failed', 'Page slug', 'invoicing' ),
 					'title'   => _x( 'Transaction Failed', 'Page title', 'invoicing' ),
-					'content' => __( 'Your transaction failed, please try again or contact site support.', 'invoicing' ),
-					'parent'  => 'gp-checkout',
+					'content' => getpaid_page_content_failure( $filtered, $gutenberg ),
+					'parent'  => 'gp-checkout'
 				),
 
 				// Subscriptions history page.
 				'invoice_subscription_page' => array(
 					'name'    => _x( 'gp-subscriptions', 'Page slug', 'invoicing' ),
 					'title'   => _x( 'My Subscriptions', 'Page title', 'invoicing' ),
-					'content' => '
-					<!-- wp:shortcode -->
-					[wpinv_subscriptions]
-					<!-- /wp:shortcode -->
-				',
-					'parent'  => '',
-				),
-
+					'content' => getpaid_page_content_subscriptions( $filtered, $gutenberg ),
+					'parent'  => ''
+				)
 			)
 		);
-
 	}
 
 	/**
@@ -231,137 +191,9 @@ class GetPaid_Installer {
 	 *
 	 */
 	public function create_pages() {
-
 		foreach ( self::get_pages() as $key => $page ) {
 			wpinv_create_page( esc_sql( $page['name'] ), $key, $page['title'], $page['content'], $page['parent'] );
 		}
-
-	}
-
-	/**
-	 * Create subscriptions table.
-	 *
-	 */
-	public function create_subscriptions_table() {
-
-		global $wpdb;
-
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
-		// Create tables.
-		$charset_collate = $wpdb->get_charset_collate();
-		$sql             = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}wpinv_subscriptions (
-			id bigint(20) unsigned NOT NULL auto_increment,
-			customer_id bigint(20) NOT NULL,
-			frequency int(11) NOT NULL DEFAULT '1',
-			period varchar(20) NOT NULL,
-			initial_amount DECIMAL(16,4) NOT NULL,
-			recurring_amount DECIMAL(16,4) NOT NULL,
-			bill_times bigint(20) NOT NULL,
-			transaction_id varchar(60) NOT NULL,
-			parent_payment_id bigint(20) NOT NULL,
-			product_id bigint(20) NOT NULL,
-			created datetime NOT NULL,
-			expiration datetime NOT NULL,
-			trial_period varchar(20) NOT NULL,
-			profile_id varchar(60) NOT NULL,
-			status varchar(20) NOT NULL,
-			PRIMARY KEY  (id),
-			KEY profile_id (profile_id),
-			KEY customer (customer_id),
-			KEY transaction (transaction_id),
-			KEY customer_and_status (customer_id, status)
-		  ) $charset_collate;";
-
-		dbDelta( $sql );
-
-	}
-
-	/**
-	 * Create invoices table.
-	 *
-	 */
-	public function create_invoices_table() {
-		global $wpdb;
-
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
-		// Create tables.
-		$charset_collate = $wpdb->get_charset_collate();
-		$sql             = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}getpaid_invoices (
-			post_id BIGINT(20) NOT NULL,
-            `number` VARCHAR(100),
-            `key` VARCHAR(100),
-            `type` VARCHAR(100) NOT NULL DEFAULT 'invoice',
-            mode VARCHAR(100) NOT NULL DEFAULT 'live',
-            user_ip VARCHAR(100),
-            first_name VARCHAR(100),
-            last_name VARCHAR(100),
-            `address` VARCHAR(100),
-            city VARCHAR(100),
-            `state` VARCHAR(100),
-            country VARCHAR(100),
-            zip VARCHAR(100),
-            adddress_confirmed INT(10),
-            gateway VARCHAR(100),
-            transaction_id VARCHAR(100),
-            currency VARCHAR(10),
-            subtotal DECIMAL(16,4) NOT NULL DEFAULT 0,
-            tax DECIMAL(16,4) NOT NULL DEFAULT 0,
-            fees_total DECIMAL(16,4) NOT NULL DEFAULT 0,
-            total DECIMAL(16,4) NOT NULL DEFAULT 0,
-            discount DECIMAL(16,4) NOT NULL DEFAULT 0,
-            discount_code VARCHAR(100),
-            disable_taxes INT(2) NOT NULL DEFAULT 0,
-            due_date DATETIME,
-            completed_date DATETIME,
-            company VARCHAR(100),
-            vat_number VARCHAR(100),
-            vat_rate VARCHAR(100),
-            custom_meta TEXT,
-			PRIMARY KEY  (post_id),
-			KEY number (number),
-			KEY `key` (`key`)
-		  ) $charset_collate;";
-
-		dbDelta( $sql );
-
-	}
-
-	/**
-	 * Create invoice items table.
-	 *
-	 */
-	public function create_invoice_items_table() {
-		global $wpdb;
-
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
-		// Create tables.
-		$charset_collate = $wpdb->get_charset_collate();
-		$sql             = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}getpaid_invoice_items (
-			ID BIGINT(20) NOT NULL AUTO_INCREMENT,
-            post_id BIGINT(20) NOT NULL,
-            item_id BIGINT(20) NOT NULL,
-            item_name TEXT NOT NULL,
-            item_description TEXT NOT NULL,
-            vat_rate FLOAT NOT NULL DEFAULT 0,
-            vat_class VARCHAR(100),
-            tax DECIMAL(16,4) NOT NULL DEFAULT 0,
-            item_price DECIMAL(16,4) NOT NULL DEFAULT 0,
-            custom_price DECIMAL(16,4) NOT NULL DEFAULT 0,
-            quantity FLOAT NOT NULL DEFAULT 1,
-            discount DECIMAL(16,4) NOT NULL DEFAULT 0,
-            subtotal DECIMAL(16,4) NOT NULL DEFAULT 0,
-            price DECIMAL(16,4) NOT NULL DEFAULT 0,
-            meta TEXT,
-            fees TEXT,
-			PRIMARY KEY  (ID),
-			KEY item_id (item_id),
-			KEY post_id (post_id)
-		  ) $charset_collate;";
-
-		dbDelta( $sql );
 
 	}
 
@@ -497,6 +329,45 @@ class GetPaid_Installer {
 	}
 
 	/**
+	 * Migrates old customers to new table.
+	 *
+	 */
+	public static function migrate_old_customers() {
+		global $wpdb;
+
+		// Fetch post_id from $wpdb->prefix . 'getpaid_invoices' where customer_id = 0 or null.
+		$invoice_ids = $wpdb->get_col( "SELECT post_id FROM {$wpdb->prefix}getpaid_invoices WHERE customer_id = 0 OR customer_id IS NULL" );
+
+		foreach ( $invoice_ids as $invoice_id ) {
+			$invoice = wpinv_get_invoice( $invoice_id );
+
+			if ( empty( $invoice ) ) {
+				continue;
+			}
+
+			// Fetch customer from the user ID.
+			$user_id = $invoice->get_user_id();
+
+			if ( empty( $user_id ) ) {
+				continue;
+			}
+
+			$customer = getpaid_get_customer_by_user_id( $user_id );
+
+			// Create if not exists.
+			if ( empty( $customer ) ) {
+				$customer = new GetPaid_Customer( 0 );
+				$customer->clone_user( $user_id );
+				$customer->save();
+			}
+
+			$invoice->set_customer_id( $customer->get_id() );
+			$invoice->save();
+		}
+
+	}
+
+	/**
 	 * Migrates old invoices to new invoices.
 	 *
 	 */
@@ -516,4 +387,256 @@ class GetPaid_Installer {
 		}
 	}
 
+	/**
+	 * Returns the DB schema.
+	 *
+	 */
+	public static function get_db_schema() {
+		global $wpdb;
+
+		if ( ! empty( self::$schema ) ) {
+			return self::$schema;
+		}
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$charset_collate = $wpdb->get_charset_collate();
+
+		$schema = array();
+
+		// Subscriptions.
+		$schema['subscriptions'] = "CREATE TABLE {$wpdb->prefix}wpinv_subscriptions (
+			id bigint(20) unsigned NOT NULL auto_increment,
+			customer_id bigint(20) NOT NULL,
+			frequency int(11) NOT NULL DEFAULT '1',
+			period varchar(20) NOT NULL,
+			initial_amount DECIMAL(16,4) NOT NULL,
+			recurring_amount DECIMAL(16,4) NOT NULL,
+			bill_times bigint(20) NOT NULL,
+			transaction_id varchar(60) NOT NULL,
+			parent_payment_id bigint(20) NOT NULL,
+			product_id bigint(20) NOT NULL,
+			created datetime NOT NULL,
+			expiration datetime NOT NULL,
+			trial_period varchar(20) NOT NULL,
+			profile_id varchar(60) NOT NULL,
+			status varchar(20) NOT NULL,
+			PRIMARY KEY  (id),
+			KEY profile_id (profile_id),
+			KEY customer (customer_id),
+			KEY transaction (transaction_id),
+			KEY customer_and_status (customer_id, status)
+		  ) $charset_collate;";
+
+		// Invoices.
+		$schema['invoices'] = "CREATE TABLE {$wpdb->prefix}getpaid_invoices (
+			post_id BIGINT(20) NOT NULL,
+			customer_id BIGINT(20) NOT NULL DEFAULT 0,
+            `number` VARCHAR(100),
+            invoice_key VARCHAR(100),
+            `type` VARCHAR(100) NOT NULL DEFAULT 'invoice',
+            mode VARCHAR(100) NOT NULL DEFAULT 'live',
+            user_ip VARCHAR(100),
+            first_name VARCHAR(100),
+            last_name VARCHAR(100),
+            `address` VARCHAR(100),
+            city VARCHAR(100),
+            `state` VARCHAR(100),
+            country VARCHAR(100),
+            zip VARCHAR(100),
+            adddress_confirmed INT(10),
+            gateway VARCHAR(100),
+            transaction_id VARCHAR(100),
+            currency VARCHAR(10),
+            subtotal DECIMAL(16,4) NOT NULL DEFAULT 0,
+            tax DECIMAL(16,4) NOT NULL DEFAULT 0,
+            fees_total DECIMAL(16,4) NOT NULL DEFAULT 0,
+            total DECIMAL(16,4) NOT NULL DEFAULT 0,
+            discount DECIMAL(16,4) NOT NULL DEFAULT 0,
+            discount_code VARCHAR(100),
+            disable_taxes INT(2) NOT NULL DEFAULT 0,
+            due_date DATETIME,
+            completed_date DATETIME,
+            company VARCHAR(100),
+            vat_number VARCHAR(100),
+            vat_rate VARCHAR(100),
+            custom_meta TEXT,
+			is_anonymized INT(2) NOT NULL DEFAULT 0,
+			PRIMARY KEY  (post_id),
+			KEY `number` (`number`),
+			KEY invoice_key (invoice_key)
+		  ) $charset_collate;";
+
+		// Invoice items.
+		$schema['items'] = "CREATE TABLE {$wpdb->prefix}getpaid_invoice_items (
+			ID BIGINT(20) NOT NULL AUTO_INCREMENT,
+            post_id BIGINT(20) NOT NULL,
+            item_id BIGINT(20) NOT NULL,
+            item_name TEXT NOT NULL,
+            item_description TEXT NOT NULL,
+            vat_rate FLOAT NOT NULL DEFAULT 0,
+            vat_class VARCHAR(100),
+            tax DECIMAL(16,4) NOT NULL DEFAULT 0,
+            item_price DECIMAL(16,4) NOT NULL DEFAULT 0,
+            custom_price DECIMAL(16,4) NOT NULL DEFAULT 0,
+            quantity DECIMAL(16,4) NOT NULL DEFAULT 1,
+            discount DECIMAL(16,4) NOT NULL DEFAULT 0,
+            subtotal DECIMAL(16,4) NOT NULL DEFAULT 0,
+            price DECIMAL(16,4) NOT NULL DEFAULT 0,
+            meta TEXT,
+            fees TEXT,
+			PRIMARY KEY  (ID),
+			KEY item_id (item_id),
+			KEY post_id (post_id)
+		  ) $charset_collate;";
+
+		// Customers.
+		$schema['customers'] = "CREATE TABLE {$wpdb->prefix}getpaid_customers (
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			user_id BIGINT(20) NOT NULL,
+			email VARCHAR(100) NOT NULL,
+			email_cc TEXT,
+			status VARCHAR(100) NOT NULL DEFAULT 'active',
+			purchase_value DECIMAL(18,9) NOT NULL DEFAULT 0,
+			purchase_count BIGINT(20) NOT NULL DEFAULT 0,
+			";
+
+		// Add address fields.
+		foreach ( array_keys( getpaid_user_address_fields( true ) ) as $field ) {
+			// Skip id, user_id and email.
+			if ( in_array( $field, array( 'id', 'user_id', 'email', 'purchase_value', 'purchase_count', 'date_created', 'date_modified', 'uuid' ), true ) ) {
+				continue;
+			}
+
+			$field   = sanitize_key( $field );
+			$length  = 100;
+			$default = '';
+
+			// Country.
+			if ( 'country' === $field ) {
+				$length  = 2;
+				$default = wpinv_get_default_country();
+			}
+
+			// State.
+			if ( 'state' === $field ) {
+				$default = wpinv_get_default_state();
+			}
+
+			// Phone, zip.
+			if ( in_array( $field, array( 'phone', 'zip' ), true ) ) {
+				$length = 20;
+			}
+
+			$schema['customers'] .= "`$field` VARCHAR($length) NOT NULL DEFAULT '$default',
+			";
+		}
+
+		$schema['customers'] .= "date_created DATETIME NOT NULL,
+			date_modified DATETIME NOT NULL,
+			uuid VARCHAR(100) NOT NULL,
+			is_anonymized INT(2) NOT NULL DEFAULT 0,
+            deletion_date DATETIME,
+			PRIMARY KEY  (id),
+			KEY user_id (user_id),
+			KEY email (email)
+		  ) $charset_collate;";
+
+		// Customer meta.
+		$schema['customer_meta'] = "CREATE TABLE {$wpdb->prefix}getpaid_customer_meta (
+			meta_id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			customer_id BIGINT(20) NOT NULL,
+			meta_key VARCHAR(255) NOT NULL,
+			meta_value LONGTEXT,
+			PRIMARY KEY  (meta_id),
+			KEY customer_id (customer_id),
+			KEY meta_key (meta_key(191))
+		  ) $charset_collate;";
+
+		// Anonymization Logs.
+		$schema['anonymization_logs'] = "CREATE TABLE {$wpdb->prefix}getpaid_anonymization_logs (
+			log_id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id BIGINT(20) UNSIGNED NOT NULL,
+			action VARCHAR(50) NOT NULL,
+			data_type VARCHAR(50) NOT NULL,
+			timestamp DATETIME NOT NULL,
+			additional_info TEXT,
+			PRIMARY KEY  (log_id),
+			KEY user_id (user_id),
+			KEY action (action),
+			KEY data_type (data_type),
+			KEY timestamp (timestamp)
+		) $charset_collate;";
+
+		// Filter.
+		$schema = apply_filters( 'getpaid_db_schema', $schema );
+
+		self::$schema         = implode( "\n", array_values( $schema ) );
+		self::$schema_version = md5( sanitize_key( self::$schema ) );
+
+		return self::$schema;
+	}
+
+	/**
+	 * Returns the DB schema version.
+	 *
+	 */
+	public static function get_db_schema_version() {
+		if ( ! empty( self::$schema_version ) ) {
+			return self::$schema_version;
+		}
+
+		self::get_db_schema();
+
+		return self::$schema_version;
+	}
+
+	/**
+	 * Checks if the db schema is up to date.
+	 *
+	 * @return bool
+	 */
+	public static function is_db_schema_up_to_date() {
+		return self::get_db_schema_version() === get_option( 'getpaid_db_schema' );
+	}
+
+	/**
+	 * Set up the database tables which the plugin needs to function.
+	 */
+	public static function create_db_tables() {
+		global $wpdb;
+
+		$wpdb->hide_errors();
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$schema = self::get_db_schema();
+
+		// If invoices table exists, rename key to invoice_key.
+		$invoices_table = "{$wpdb->prefix}getpaid_invoices";
+
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$wpdb->prefix}getpaid_invoices'" ) === $invoices_table ) {
+			$fields = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}getpaid_invoices" );
+
+			foreach ( $fields as $field ) {
+				if ( 'key' === $field->Field ) {
+					$wpdb->query( "ALTER TABLE {$wpdb->prefix}getpaid_invoices CHANGE `key` `invoice_key` VARCHAR(100)" );
+					break;
+				}
+			}
+		}
+
+		dbDelta( $schema );
+		wp_cache_flush();
+		update_option( 'getpaid_db_schema', self::get_db_schema_version() );
+	}
+
+	/**
+	 * Creates tables if schema is not up to date.
+	 */
+	public static function maybe_create_db_tables() {
+		if ( ! self::is_db_schema_up_to_date() ) {
+			self::create_db_tables();
+		}
+	}
 }

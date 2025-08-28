@@ -26,8 +26,8 @@ function wpinv_get_item_by_id( $id ) {
  */
 function wpinv_get_item_by( $field = '', $value = '', $type = '' ) {
 
-    if ( 'id' == strtolower( $field ) ) {
-        return wpinv_get_item_by_id( $field );
+    if ( 'id' === strtolower( $field ) ) {
+        return wpinv_get_item_by_id( $value );
     }
 
     $id = WPInv_Item::get_item_id_by_field( $value, strtolower( $field ), $type );
@@ -64,7 +64,12 @@ function wpinv_get_all_items( $args = array() ) {
 			'orderby'    => 'date',
 			'order'      => 'DESC',
 			'type'       => wpinv_item_types(),
-			'meta_query' => array(),
+			'meta_query' => array(
+                array(
+                    'key'     => '_wpinv_one_time',
+                    'compare' => 'NOT EXISTS',
+                ),
+            ),
 			'return'     => 'objects',
 			'paginate'   => false,
         )
@@ -247,20 +252,27 @@ function wpinv_get_random_item( $post_ids = true ) {
 }
 
 function wpinv_get_random_items( $num = 3, $post_ids = true ) {
+    $args = array();
     if ( $post_ids ) {
         $args = array(
-			'post_type'  => 'wpi_item',
-			'orderby'    => 'rand',
-			'post_count' => $num,
-			'fields'     => 'ids',
-		);
-    } else {
-        $args = array(
-			'post_type'  => 'wpi_item',
-			'orderby'    => 'rand',
-			'post_count' => $num,
+			'fields' => 'ids',
 		);
     }
+
+    $args = array_merge(
+        $args,
+        array(
+            'post_type'  => 'wpi_item',
+			'orderby'    => 'rand',
+			'post_count' => $num,
+            'meta_query' => array(
+                array(
+                    'key'     => '_wpinv_one_time',
+                    'compare' => 'NOT EXISTS',
+                ),
+            ),
+        )
+    );
 
     $args  = apply_filters( 'wpinv_get_random_items', $args );
 
@@ -562,4 +574,32 @@ function getpaid_item_recurring_price_help_text( $item, $currency = '', $_initia
         "<span class='getpaid-item-recurring-bill-times'>$bill_times_less</span>"
     );
 
+}
+
+/**
+ * Check a item type's support for a given feature.
+ *
+ * @since 2.8.8
+ *
+ * @param string $item_type The item type being checked.
+ * @param string $feature   The feature being checked.
+ * @param int    $item_ID   The item post ID. Optional.
+ * @return bool Whether the item type supports the given feature.
+ */
+function getpaid_item_type_supports( $item_type, $feature, $item_ID = 0 ) {
+	$supports = false;
+
+	if ( ! is_scalar( $item_type ) ) {
+		return $supports;
+	}
+
+	switch ( $feature ) {
+		case 'buy_now':
+			if ( '' === $item_type || 'fee' === $item_type || 'custom' === $item_type ) {
+				$supports = true;
+			}
+			break;
+	}
+
+	return apply_filters( 'getpaid_item_type_supports', $supports, $item_type, $feature, $item_ID );
 }
