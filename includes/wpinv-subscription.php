@@ -753,20 +753,20 @@ class WPInv_Subscription extends GetPaid_Data {
 
 	/**
 	 * Is the subscription active?
-	 * Added by custom Dev
+	 *
 	 * @return bool
 	 */
 	public function is_active() {
-		return $this->has_status( 'active trialling lsr_manually' ) && ! $this->is_expired();
+		return $this->has_status( 'active trialling' ) && ! $this->is_expired();
 	}
 
 	/**
 	 * Is the subscription expired?
-	 * Added by custom Dev
+	 *
 	 * @return bool
 	 */
 	public function is_expired() {
-		return $this->has_status( 'expired' ) || ( $this->has_status( 'active cancelled trialling lsr_manually' ) && $this->get_expiration_time() < current_time( 'timestamp' ) );
+		return $this->has_status( 'expired' ) || ( $this->has_status( 'active cancelled trialling' ) && $this->get_expiration_time() < current_time( 'timestamp' ) );
 	}
 
 	/**
@@ -1072,13 +1072,13 @@ class WPInv_Subscription extends GetPaid_Data {
 
     /**
      * Returns an array of subscription statuses that can be cancelled
-     * Added by custom Dev
+     *
      * @access      public
      * @since       1.0.0
      * @return      array
      */
     public function get_cancellable_statuses() {
-        return apply_filters( 'wpinv_recurring_cancellable_statuses', array( 'active', 'trialling', 'failing','lsr_manually' ) );
+        return apply_filters( 'wpinv_recurring_cancellable_statuses', array( 'active', 'trialling', 'failing' ) );
     }
 
 	/**
